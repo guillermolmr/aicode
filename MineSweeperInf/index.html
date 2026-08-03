@@ -1,0 +1,1065 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Minefield ∞ — Infinite Minesweeper</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff5b5b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z'/%3E%3Cline x1='4' x2='4' y1='22' y2='15'/%3E%3C/svg%3E">
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%;overflow:hidden}
+  body{
+    background:#0c0d10;color:#e6e8ec;
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Inter,Arial,sans-serif;
+    -webkit-user-select:none;user-select:none;
+    -webkit-font-smoothing:antialiased;
+  }
+  #game{position:fixed;inset:0;display:block;touch-action:none}
+  .vignette{position:fixed;inset:0;pointer-events:none;z-index:2;
+    background:radial-gradient(120% 120% at 50% 38%,transparent 52%,rgba(0,0,0,.5) 100%)}
+
+  .hud{position:fixed;z-index:10;display:flex;gap:10px;align-items:center}
+  .hud-tl{top:14px;left:14px}
+  .hud-tr{top:14px;right:14px}
+  .hud-bl{bottom:14px;left:14px}
+  .hud-br{bottom:14px;right:14px}
+
+  .card{
+    background:rgba(20,22,27,.8);
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+    border:1px solid rgba(255,255,255,.09);
+    border-radius:14px;box-shadow:0 10px 28px rgba(0,0,0,.4);
+    padding:9px 14px;
+  }
+  .brand{display:flex;align-items:center;gap:9px;font-weight:800;letter-spacing:.14em;font-size:12px;text-transform:uppercase}
+  .brand svg{width:17px;height:17px;stroke:#ff5b5b}
+  .brand em{font-style:normal;color:#8f96a3;font-weight:600;letter-spacing:.06em}
+  .stat{display:flex;align-items:center;gap:8px;font-weight:700;font-size:14px;font-variant-numeric:tabular-nums}
+  .stat svg{width:17px;height:17px}
+  .stat small{font-weight:600;font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#8f96a3;margin-left:2px}
+  #coinCard svg{stroke:#f5c542}
+  #doneCard svg{stroke:#3ddc78}
+  #coinCard.pulse{animation:pulse .5s ease}
+  @keyframes pulse{0%{transform:scale(1)}35%{transform:scale(1.18)}100%{transform:scale(1)}}
+
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;
+    font:600 13px/1 inherit;font-family:inherit;letter-spacing:.02em;
+    color:#e6e8ec;background:rgba(20,22,27,.8);
+    border:1px solid rgba(255,255,255,.12);border-radius:14px;
+    padding:10px 16px;cursor:pointer;
+    backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+    box-shadow:0 10px 28px rgba(0,0,0,.4);
+    transition:transform .12s ease,border-color .15s,background .15s;
+  }
+  .btn:hover{transform:translateY(-1px);border-color:rgba(255,255,255,.28)}
+  .btn svg{width:15px;height:15px}
+  .btn.danger:hover{border-color:rgba(229,72,77,.7);background:rgba(60,20,24,.85)}
+  .btn.primary{background:#1f7a3d;border-color:#2ea85c;color:#fff}
+  .btn.primary:hover{background:#24984b;border-color:#3ddc78}
+  .btn.primary:disabled{opacity:.45;cursor:not-allowed;transform:none}
+  .btn.big{padding:13px 18px;font-size:14px;border-radius:12px;width:100%;justify-content:center}
+
+  .help{font-size:11.5px;line-height:1.85;color:#aab0bc;letter-spacing:.02em}
+  .help b{color:#e6e8ec;font-weight:700}
+  .help kbd{
+    font:600 10px 'Segoe UI',sans-serif;background:rgba(255,255,255,.08);
+    border:1px solid rgba(255,255,255,.14);border-bottom-width:2px;
+    padding:1px 5px;border-radius:5px;color:#dde1e8;
+  }
+  #boardInfo{font-size:12px;font-variant-numeric:tabular-nums;color:#c9ced8;min-width:250px;text-align:right}
+  #boardInfo .dim{color:#7d8492}
+
+  .legend{display:none;position:fixed;z-index:10;left:50%;top:14px;transform:translateX(-50%);
+    align-items:center;gap:16px;font-size:12px;color:#c9ced8;white-space:nowrap}
+  .legend.on{display:flex}
+  .legend .lg{display:flex;align-items:center;gap:6px}
+  .legend i{width:12px;height:12px;border-radius:3px;display:inline-block}
+  .legend .dim{color:#7d8492}
+
+  #startHint{
+    position:fixed;z-index:9;left:50%;top:50%;transform:translate(-50%,-50%);
+    text-align:center;pointer-events:none;
+    animation:breathe 2.6s ease-in-out infinite;
+  }
+  #startHint h1{font-size:clamp(26px,4vw,44px);font-weight:800;letter-spacing:.04em;text-shadow:0 4px 30px rgba(0,0,0,.8)}
+  #startHint h1 span{color:#ff5b5b}
+  #startHint p{margin-top:10px;color:#aab0bc;font-size:14px}
+  @keyframes breathe{0%,100%{opacity:.55}50%{opacity:1}}
+  .hidden{display:none !important}
+
+  #toasts{position:fixed;z-index:40;bottom:70px;left:50%;transform:translateX(-50%);
+    display:flex;flex-direction:column;align-items:center;gap:8px;pointer-events:none}
+  .toast{
+    background:rgba(22,24,29,.92);border:1px solid rgba(255,255,255,.12);
+    border-radius:12px;padding:10px 18px;font-size:13px;font-weight:600;
+    box-shadow:0 10px 28px rgba(0,0,0,.5);
+    opacity:0;transform:translateY(10px);transition:all .28s ease;
+    display:flex;align-items:center;gap:8px;white-space:nowrap;
+  }
+  .toast.show{opacity:1;transform:translateY(0)}
+  .toast.good{border-color:rgba(61,220,120,.5);color:#7ceea4}
+  .toast.bad{border-color:rgba(229,72,77,.55);color:#ff9c9c}
+  .toast.gold{border-color:rgba(245,197,66,.5);color:#ffd97a}
+  .toast.info{border-color:rgba(120,160,255,.5);color:#a9c3ff}
+
+  .overlay{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;
+    background:rgba(6,7,10,.6);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
+  .modal{
+    position:relative;width:min(400px,92vw);
+    background:rgba(24,26,32,.96);border:1px solid rgba(255,255,255,.1);
+    border-radius:20px;padding:28px;box-shadow:0 30px 80px rgba(0,0,0,.6);
+  }
+  .modal h2{font-size:19px;font-weight:800;letter-spacing:.01em;display:flex;align-items:center;gap:10px}
+  .modal h2 svg{width:20px;height:20px}
+  .modal h2.red{color:#ff8383}
+  .modal h2.red svg{stroke:#ff8383}
+  .modal p.muted{color:#9aa1ae;font-size:13px;margin-top:8px;line-height:1.55}
+  .modal .rows{margin:18px 0;display:flex;flex-direction:column;gap:10px;font-size:13.5px;color:#c9ced8}
+  .modal .rows .row{display:flex;justify-content:space-between;align-items:center}
+  .modal .rows b{color:#fff;font-variant-numeric:tabular-nums}
+  .bar{height:7px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}
+  .bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#2ea85c,#3ddc78);transition:width .3s ease}
+  .modal .actions{display:flex;gap:10px;margin-top:22px}
+  .modal .actions .btn{flex:1;justify-content:center}
+  .btn.solid-danger{background:#a02b31;border-color:#e5484d;color:#fff}
+  .btn.solid-danger:hover{background:#c03535;border-color:#ff6b6b}
+  .icon-btn{
+    position:absolute;top:14px;right:14px;width:30px;height:30px;border-radius:9px;
+    border:1px solid rgba(255,255,255,.12);background:transparent;color:#9aa1ae;
+    cursor:pointer;display:flex;align-items:center;justify-content:center;
+  }
+  .icon-btn:hover{color:#fff;border-color:rgba(255,255,255,.3)}
+  .icon-btn svg{width:14px;height:14px}
+  .modal .fine{margin-top:12px;font-size:11.5px;color:#7d8492;text-align:center}
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div class="vignette"></div>
+
+<header class="hud hud-tl">
+  <div class="card brand">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg>
+    Minefield&nbsp;<em>infinite</em>
+  </div>
+  <div class="card stat" id="coinCard" title="Coins — earned by clearing boards">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></svg>
+    <span id="coinVal">0</span><small>coins</small>
+  </div>
+  <div class="card stat" id="doneCard" title="Boards cleared">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+    <span id="doneVal">0</span><small>cleared</small>
+  </div>
+</header>
+
+<div class="hud hud-tr">
+  <button class="btn danger" id="newGameBtn" title="Erase progress and restart">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+    New Game
+  </button>
+</div>
+
+<div class="hud hud-bl card help">
+  <b>Left click</b> reveal &nbsp;·&nbsp; <b>Right click</b> flag → <b>?</b> → clear<br>
+  <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / arrows pan &nbsp;·&nbsp; <b>Middle-drag</b> pan<br>
+  <b>Scroll</b> zoom — zoom far out for the world map
+</div>
+
+<div class="hud hud-br card" id="boardInfo"><span class="dim">Hover a board…</span></div>
+
+<div class="card legend" id="legend">
+  <span class="lg"><i style="background:#31c461"></i>Cleared</span>
+  <span class="lg"><i style="background:#c7c9cc"></i>In progress</span>
+  <span class="lg"><i style="background:#e5484d"></i>Locked</span>
+  <span class="lg"><i style="background:#2C2D2D;box-shadow:inset 0 0 0 1px #4a4d52"></i>Untouched</span>
+  <span class="dim">· click a board to jump in</span>
+</div>
+
+<div id="startHint">
+  <h1>Click any tile to <span>begin</span></h1>
+  <p>The first board has exactly 8 mines — and your first click is always safe.</p>
+</div>
+
+<div id="toasts"></div>
+
+<!-- Locked board panel -->
+<div class="overlay hidden" id="lockOverlay">
+  <div class="modal">
+    <button class="icon-btn" id="lockClose" title="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+    </button>
+    <h2 class="red">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      Board locked
+    </h2>
+    <p class="muted">A mine detonated on this board. Clear all 8 surrounding boards to unlock it — or pay to break in early.</p>
+    <div class="rows">
+      <div class="row"><span>Mines on this board</span><b id="lkMines">–</b></div>
+      <div class="row"><span>Surrounding boards cleared</span><b id="lkProg">0 / 8</b></div>
+      <div class="bar"><i id="lkBar" style="width:0%"></i></div>
+    </div>
+    <button class="btn primary big" id="payBtn">Unlock</button>
+    <p class="fine" id="lkNote"></p>
+  </div>
+</div>
+
+<!-- New game confirm -->
+<div class="overlay hidden" id="confirmOverlay">
+  <div class="modal">
+    <h2>
+      <svg viewBox="0 0 24 24" fill="none" stroke="#ffb454" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+      Start a new game?
+    </h2>
+    <p class="muted">This will permanently erase all progress — every board, flag and coin. Are you sure?</p>
+    <div class="actions">
+      <button class="btn" id="cancelBtn">Cancel</button>
+      <button class="btn solid-danger" id="resetBtn">Yes, erase everything</button>
+    </div>
+  </div>
+</div>
+
+<script>
+'use strict';
+/* ============================================================
+   MINEFIELD ∞ — infinite grid of 9x9 minesweeper boards
+   ============================================================ */
+const $ = id => document.getElementById(id);
+
+/* ---------- constants ---------- */
+const C = 30;              // cell size in world px (zoom = 1)
+const GAP = 8;             // gap band between boards
+const P = 9 * C + GAP;     // board pitch
+const MIN_S = 0.04, MAX_S = 3, MAP_S = 0.18;
+const SAVE_KEY = 'minefield-infinite-v1';
+const NUM_COLORS = [null,'#5b8cff','#4ade80','#ff5b5b','#b78bff','#ff9f43','#4dd0e1','#ff6fb1','#9aa0a6'];
+const MAP_COLORS = { untouched:'#2C2D2D', progress:'#c7c9cc', done:'#31c461', locked:'#e5484d' };
+
+/* ---------- state ---------- */
+let seed = 1;
+let coins = 0;
+let started = false;          // global first click done
+let boards = new Map();       // "bx,by" -> board
+let boardsDone = 0;
+let cam = { x: 9*C/2, y: 9*C/2, s: 1 };
+let tgt = { x: cam.x, y: cam.y, s: 1 };
+
+let canvas, ctx, W = 0, H = 0, dpr = 1;
+let mouse = { x: 0, y: 0, in: false };
+let zoomAnchor = null;
+let keys = new Set();
+let panning = false, panLast = { x: 0, y: 0 };
+let explosions = [], floats = [];
+let shake = 0, saveTimer = null, lockBoard = null;
+let lastInfo = '', lastCursor = '';
+
+/* ---------- rng ---------- */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296}}
+function boardHash(bx,by){
+  let h = seed >>> 0;
+  h ^= Math.imul(bx, 0x9E3779B1); h ^= Math.imul(by, 0x85EBCA6B);
+  h = Math.imul(h ^ (h>>>16), 0x21F0AAAD);
+  h = Math.imul(h ^ (h>>>15), 0x735A2D97);
+  h ^= h >>> 15; return h >>> 0;
+}
+
+/* ---------- boards ---------- */
+function makeBoard(bx, by){
+  const rng = mulberry32(boardHash(bx, by));
+  const m = 8 + Math.floor(rng() * 25);           // 8..32 mines
+  const mines = new Uint8Array(81);
+  const idx = Array.from({length:81},(_,i)=>i);
+  for (let i = 0; i < m; i++){
+    const j = i + Math.floor(rng() * (81 - i));
+    const t = idx[i]; idx[i] = idx[j]; idx[j] = t;
+    mines[idx[i]] = 1;
+  }
+  return { bx, by, m, mines, cells: new Uint8Array(81), s: 0, t: -1 };
+  // cells: 0 hidden, 1 revealed, 2 flag, 3 question, 4 wrong-flag(X), 5 correct flag, 6 exploded mine
+  // s: 0 untouched, 1 in progress, 2 cleared, 3 locked
+}
+function getBoard(bx, by){
+  const k = bx + ',' + by;
+  let b = boards.get(k);
+  if (!b){ b = makeBoard(bx, by); boards.set(k, b); saveSoon(); }
+  return b;
+}
+function peek(bx, by){ return boards.get(bx + ',' + by); }
+function splitCell(gx, gy){
+  const bx = Math.floor(gx/9), by = Math.floor(gy/9);
+  return { bx, by, lx: gx - bx*9, ly: gy - by*9 };
+}
+function cellStateNG(gx, gy){
+  const a = splitCell(gx, gy); const b = peek(a.bx, a.by);
+  return b ? b.cells[a.ly*9 + a.lx] : 0;
+}
+function countMines(gx, gy){ // generates neighbor boards as needed (persisted)
+  let n = 0;
+  for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++){
+    if (!dx && !dy) continue;
+    const a = splitCell(gx+dx, gy+dy);
+    if (getBoard(a.bx, a.by).mines[a.ly*9 + a.lx]) n++;
+  }
+  return n;
+}
+function numberNG(gx, gy){ // draw-time, no generation
+  let n = 0;
+  for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++){
+    if (!dx && !dy) continue;
+    const a = splitCell(gx+dx, gy+dy); const b = peek(a.bx, a.by);
+    if (b && b.mines[a.ly*9 + a.lx]) n++;
+  }
+  return n;
+}
+function hasRevealedNeighbor(gx, gy){
+  for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++){
+    if (!dx && !dy) continue;
+    if (cellStateNG(gx+dx, gy+dy) === 1) return true;
+  }
+  return false;
+}
+function isVirgin(b){ if (!b) return true; for (let i=0;i<81;i++) if (b.cells[i] !== 0) return false; return true; }
+function boardHasReveal(b){ if (!b) return false; for (let i=0;i<81;i++) if (b.cells[i] === 1) return true; return false; }
+function neighborBoardHasReveal(bx, by){
+  for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++){
+    if (!dx && !dy) continue;
+    if (boardHasReveal(peek(bx+dx, by+dy))) return true;
+  }
+  return false;
+}
+/* interaction rules: touch only cells adjacent to revealed cells;
+   (exception: seed a virgin board that borders explored territory, and the global first click) */
+function canReveal(gx, gy, b){
+  if (!started) return true;
+  if (hasRevealedNeighbor(gx, gy)) return true;
+  if (isVirgin(b) && neighborBoardHasReveal(Math.floor(gx/9), Math.floor(gy/9))) return true;
+  return false;
+}
+function canFlag(gx, gy){ return started && hasRevealedNeighbor(gx, gy); }
+
+/* first click of the whole game: exactly 8 mines, click + 3x3 always safe */
+function applyFirstClick(b, lx, ly){
+  const rng = mulberry32((boardHash(b.bx, b.by) ^ 0x51ab9e37) >>> 0);
+  const safe = new Set();
+  for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++){
+    const nx = lx+dx, ny = ly+dy;
+    if (nx>=0 && nx<9 && ny>=0 && ny<9) safe.add(ny*9+nx);
+  }
+  const spots = [];
+  for (let i=0;i<81;i++) if (!safe.has(i)) spots.push(i);
+  for (let i=spots.length-1;i>0;i--){
+    const j = Math.floor(rng()*(i+1)); const t=spots[i]; spots[i]=spots[j]; spots[j]=t;
+  }
+  b.mines.fill(0); b.m = 8;
+  for (let k=0;k<8;k++) b.mines[spots[k]] = 1;
+}
+
+/* ---------- actions ---------- */
+function revealAt(gx, gy){
+  const a = splitCell(gx, gy);
+  const b = getBoard(a.bx, a.by);
+  if (b.s === 2) return;
+  if (b.s === 3){ openLockPanel(b); return; }
+  const i = a.ly*9 + a.lx;
+  const st = b.cells[i];
+  if (st === 1){ chord(b, gx, gy, i); return; }
+  if (st === 2 || st === 5) return;                 // flagged cells can't be left-clicked
+  if (!canReveal(gx, gy, b)){ toast('You can only open tiles adjacent to revealed ones','info'); return; }
+  if (!started){
+    started = true; applyFirstClick(b, a.lx, a.ly);
+    $('startHint').classList.add('hidden');
+  }
+  if (b.s === 0) b.s = 1;
+  if (b.mines[i]){ b.cells[i] = 6; detonate(b, i); }
+  else floodReveal(gx, gy);
+  saveSoon(); updateHUD();
+}
+function floodReveal(gx, gy){
+  const stack = [[gx, gy]]; const touched = new Set();
+  while (stack.length){
+    const [x, y] = stack.pop();
+    const a = splitCell(x, y);
+    const b = getBoard(a.bx, a.by);
+    if (b.s === 3 || b.s === 2) continue;
+    const i = a.ly*9 + a.lx;
+    const st = b.cells[i];
+    if (st === 1 || st === 2 || st === 5) continue;
+    b.cells[i] = 1;
+    if (b.s === 0) b.s = 1;
+    touched.add(b);
+    if (countMines(x, y) === 0){
+      for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++){
+        if (!dx && !dy) continue;
+        const ns = cellStateNG(x+dx, y+dy);
+        if (ns !== 1 && ns !== 2 && ns !== 5) stack.push([x+dx, y+dy]);
+      }
+    }
+  }
+  touched.forEach(checkComplete);
+}
+function chord(b, gx, gy, i){
+  const n = countMines(gx, gy); if (!n) return;
+  let flags = 0;
+  for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++){
+    if (!dx && !dy) continue;
+    const s = cellStateNG(gx+dx, gy+dy);
+    if (s === 2 || s === 5) flags++;
+  }
+  if (flags !== n) return;
+  for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++){
+    if (!dx && !dy) continue;
+    const a = splitCell(gx+dx, gy+dy);
+    const nb = getBoard(a.bx, a.by);
+    if (nb.s === 3 || nb.s === 2) continue;
+    const ni = a.ly*9 + a.lx, ns = nb.cells[ni];
+    if (ns === 0 || ns === 3 || ns === 4){
+      if (nb.mines[ni]){ nb.cells[ni] = 6; detonate(nb, ni); }
+      else floodReveal(gx+dx, gy+dy);
+    }
+  }
+}
+function flagAt(gx, gy){
+  const a = splitCell(gx, gy);
+  const b = getBoard(a.bx, a.by);
+  if (b.s === 2 || b.s === 3) return;
+  const i = a.ly*9 + a.lx, st = b.cells[i];
+  if (st === 1 || st === 6) return;
+  if (st === 0){
+    if (!canFlag(gx, gy)) return;
+    b.cells[i] = 2;
+  }
+  else if (st === 2 || st === 5) b.cells[i] = 3;    // flag -> question mark (visual only)
+  else if (st === 3) b.cells[i] = 0;                // question -> clear
+  else if (st === 4) b.cells[i] = 0;                // wrong-mark -> clear
+  if (b.s === 0) b.s = 1;
+  checkComplete(b);
+  saveSoon();
+}
+function detonate(b, i){
+  b.s = 3; b.t = i;
+  shake = 1;
+  explosions.push({ wx: b.bx*P + (i%9)*C + C/2, wy: b.by*P + Math.floor(i/9)*C + C/2, t0: performance.now() });
+  toast('BOOM! Mine detonated — board locked','bad');
+  openLockPanel(b);
+}
+function checkComplete(b){
+  if (b.s !== 1) return;
+  let safeHidden = false, wrongFlag = false, unflaggedMine = false;
+  for (let i=0;i<81;i++){
+    const st = b.cells[i];
+    if (b.mines[i]){ if (st !== 2 && st !== 5) unflaggedMine = true; }
+    else {
+      if (st !== 1) safeHidden = true;
+      if (st === 2 || st === 5) wrongFlag = true;
+    }
+  }
+  if (!safeHidden){ finishBoard(b); return; }
+  if (!unflaggedMine && !wrongFlag){              // flawless flags -> reveal everything safe
+    for (let i=0;i<81;i++) if (!b.mines[i] && b.cells[i] !== 1) b.cells[i] = 1;
+    finishBoard(b);
+  }
+}
+function finishBoard(b){
+  if (b.s === 2) return;
+  b.s = 2;
+  for (let i=0;i<81;i++) if (b.mines[i] && b.cells[i] !== 5) b.cells[i] = 5;
+  const gain = Math.floor(b.m / 8);
+  coins += gain; boardsDone++;
+  floats.push({ wx: b.bx*P + 9*C/2, wy: b.by*P, text: '+'+gain+' coins', t0: performance.now(), color: '#ffd97a' });
+  toast('Board cleared  ·  +'+gain+' coins','gold');
+  flashCoins(); updateHUD(); saveSoon();
+  for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++){
+    if (!dx && !dy) continue;
+    const nb = peek(b.bx+dx, b.by+dy);
+    if (nb && nb.s === 3) maybeAutoUnlock(nb);
+  }
+}
+function surroundingsCleared(L){
+  let k = 0;
+  for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++){
+    if (!dx && !dy) continue;
+    const nb = peek(L.bx+dx, L.by+dy);
+    if (nb && nb.s === 2) k++;
+  }
+  return k;
+}
+function maybeAutoUnlock(L){
+  if (L.s !== 3) return;
+  if (surroundingsCleared(L) === 8){
+    unlockBoard(L, false);
+    toast('All 8 surrounding boards cleared — board unlocked!','good');
+  }
+}
+function unlockBoard(L){
+  L.s = 1;
+  for (let i=0;i<81;i++)
+    if (L.cells[i] === 2) L.cells[i] = L.mines[i] ? 5 : 4;   // review flags: correct vs wrong
+  if (L.t >= 0){ L.cells[L.t] = 5; L.t = -1; }               // auto-flag the triggered mine
+  toast('Flags reviewed — correct marked green, wrong crossed out','info');
+  checkComplete(L);
+  saveSoon();
+}
+function unlockCost(b){ return Math.round(30 + (b.m - 8) * (30/24)); } // 30 @8 mines … 60 @32 mines
+
+/* ---------- persistence ---------- */
+function saveSoon(){ clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 350); }
+function saveNow(){
+  try{
+    const bs = {};
+    boards.forEach((b, k) => {
+      const mn = [];
+      for (let i=0;i<81;i++) if (b.mines[i]) mn.push(i);
+      bs[k] = { m: b.m, mn: mn.join(','), c: Array.from(b.cells).join(''), s: b.s, t: b.t };
+    });
+    localStorage.setItem(SAVE_KEY, JSON.stringify({
+      v: 1, seed, coins, started,
+      cam: { x: cam.x, y: cam.y, s: tgt.s }, boards: bs
+    }));
+  }catch(e){ /* storage full / unavailable */ }
+}
+function load(){
+  try{
+    const raw = localStorage.getItem(SAVE_KEY);
+    if (!raw) return false;
+    const d = JSON.parse(raw);
+    if (d.v !== 1) return false;
+    seed = d.seed >>> 0; coins = d.coins|0; started = !!d.started;
+    boards = new Map();
+    Object.entries(d.boards || {}).forEach(([k, o]) => {
+      const [bx, by] = k.split(',').map(Number);
+      if (Number.isNaN(bx) || Number.isNaN(by)) return;
+      const mines = new Uint8Array(81);
+      if (o.mn) o.mn.split(',').forEach(s => { const i = +s; if (i>=0 && i<81) mines[i] = 1; });
+      const cells = new Uint8Array(81);
+      const cs = o.c || '';
+      for (let i=0; i<81 && i<cs.length; i++){ const v = cs.charCodeAt(i) - 48; cells[i] = (v>=0 && v<=6) ? v : 0; }
+      const b = { bx, by, m: o.m|0, mines, cells, s: o.s|0, t: (typeof o.t === 'number') ? o.t : -1 };
+      if (b.s === 2) boardsDone++;
+      boards.set(k, b);
+    });
+    cam = { x: d.cam.x, y: d.cam.y, s: d.cam.s };
+    tgt = { x: d.cam.x, y: d.cam.y, s: d.cam.s };
+    return true;
+  }catch(e){ return false; }
+}
+
+/* ---------- coordinate transforms ---------- */
+function w2sX(wx){ return W/2 + (wx - cam.x) * cam.s; }
+function w2sY(wy){ return H/2 + (wy - cam.y) * cam.s; }
+function s2wX(sx){ return cam.x + (sx - W/2) / cam.s; }
+function s2wY(sy){ return cam.y + (sy - H/2) / cam.s; }
+function pickCell(mx, my){
+  const wx = s2wX(mx), wy = s2wY(my);
+  const bx = Math.floor(wx / P), by = Math.floor(wy / P);
+  const rx = wx - bx*P, ry = wy - by*P;
+  if (rx >= 9*C || ry >= 9*C) return null;        // in the gap band between boards
+  return { gx: bx*9 + Math.floor(rx / C), gy: by*9 + Math.floor(ry / C) };
+}
+
+/* ---------- input ---------- */
+function bindInput(){
+  window.addEventListener('resize', resize);
+  canvas.addEventListener('contextmenu', e => e.preventDefault());
+  canvas.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; mouse.in = true; });
+  canvas.addEventListener('mouseleave', () => { mouse.in = false; });
+
+  canvas.addEventListener('mousedown', e => {
+    if (e.button === 1){
+      e.preventDefault();
+      panning = true; panLast = { x: e.clientX, y: e.clientY };
+      zoomAnchor = null;
+      return;
+    }
+    const mapMode = cam.s < MAP_S;
+    if (e.button === 0){
+      if (mapMode){
+        const wx = s2wX(e.clientX), wy = s2wY(e.clientY);
+        const bx = Math.floor(wx / P), by = Math.floor(wy / P);
+        tgt.x = bx*P + 9*C/2; tgt.y = by*P + 9*C/2; tgt.s = 0.9;
+        zoomAnchor = null;
+        return;
+      }
+      const c = pickCell(e.clientX, e.clientY);
+      if (c) revealAt(c.gx, c.gy);
+    } else if (e.button === 2){
+      if (mapMode) return;
+      const c = pickCell(e.clientX, e.clientY);
+      if (c) flagAt(c.gx, c.gy);
+    }
+  });
+  window.addEventListener('mousemove', e => {
+    if (!panning) return;
+    const dx = e.clientX - panLast.x, dy = e.clientY - panLast.y;
+    panLast = { x: e.clientX, y: e.clientY };
+    tgt.x -= dx / cam.s; tgt.y -= dy / cam.s;
+    cam.x = tgt.x; cam.y = tgt.y;
+  });
+  window.addEventListener('mouseup', e => { if (e.button === 1) panning = false; });
+  window.addEventListener('blur', () => { keys.clear(); panning = false; });
+
+  canvas.addEventListener('wheel', e => {
+    e.preventDefault();
+    const f = Math.exp(-e.deltaY * 0.0014);
+    tgt.s = Math.min(MAX_S, Math.max(MIN_S, tgt.s * f));
+    zoomAnchor = { wx: s2wX(e.clientX), wy: s2wY(e.clientY), mx: e.clientX, my: e.clientY };
+  }, { passive: false });
+
+  window.addEventListener('keydown', e => {
+    if (e.code === 'Escape'){ closeOverlays(); return; }
+    const moveKeys = ['KeyW','KeyA','KeyS','KeyD','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'];
+    if (moveKeys.includes(e.code)){
+      e.preventDefault();
+      keys.add(e.code);
+      zoomAnchor = null;
+    }
+  });
+  window.addEventListener('keyup', e => keys.delete(e.code));
+  window.addEventListener('beforeunload', saveNow);
+}
+
+/* ---------- rendering ---------- */
+function rr(x, y, w, h, r){
+  r = Math.min(r, w/2, h/2);
+  ctx.beginPath();
+  ctx.moveTo(x+r, y);
+  ctx.arcTo(x+w, y, x+w, y+h, r);
+  ctx.arcTo(x+w, y+h, x, y+h, r);
+  ctx.arcTo(x, y+h, x, y, r);
+  ctx.arcTo(x, y, x+w, y, r);
+  ctx.closePath();
+}
+function drawFlagIcon(cx, cy, sz, color){
+  const lw = Math.max(1, sz*0.07);
+  ctx.strokeStyle = '#c7cad1'; ctx.lineWidth = lw; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.moveTo(cx - sz*0.1, cy - sz*0.26); ctx.lineTo(cx - sz*0.1, cy + sz*0.2); ctx.stroke();
+  ctx.fillStyle = color;
+  ctx.beginPath();
+  ctx.moveTo(cx - sz*0.08, cy - sz*0.28);
+  ctx.lineTo(cx + sz*0.28, cy - sz*0.13);
+  ctx.lineTo(cx - sz*0.08, cy + sz*0.02);
+  ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#878d99';
+  rr(cx - sz*0.22, cy + sz*0.19, sz*0.36, sz*0.09, sz*0.04); ctx.fill();
+}
+function drawWrongX(cx, cy, sz){
+  ctx.strokeStyle = '#ff5252'; ctx.lineWidth = Math.max(1.2, sz*0.1); ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(cx - sz*0.3, cy - sz*0.3); ctx.lineTo(cx + sz*0.3, cy + sz*0.3);
+  ctx.moveTo(cx + sz*0.3, cy - sz*0.3); ctx.lineTo(cx - sz*0.3, cy + sz*0.3);
+  ctx.stroke();
+}
+function drawMineIcon(cx, cy, r, color, hot){
+  ctx.strokeStyle = color; ctx.lineWidth = Math.max(1, r*0.34); ctx.lineCap = 'round';
+  ctx.beginPath();
+  for (let k=0;k<8;k++){
+    const a = k * Math.PI/4;
+    ctx.moveTo(cx + Math.cos(a)*r*0.55, cy + Math.sin(a)*r*0.55);
+    ctx.lineTo(cx + Math.cos(a)*r*1.35, cy + Math.sin(a)*r*1.35);
+  }
+  ctx.stroke();
+  ctx.fillStyle = color;
+  ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = hot ? 'rgba(255,255,255,.9)' : 'rgba(255,255,255,.55)';
+  ctx.beginPath(); ctx.arc(cx - r*0.32, cy - r*0.32, r*0.26, 0, Math.PI*2); ctx.fill();
+}
+function drawLockGlyph(cx, cy, sz, color){
+  ctx.strokeStyle = color; ctx.lineWidth = sz*0.16; ctx.lineCap = 'round';
+  ctx.beginPath(); ctx.arc(cx, cy - sz*0.08, sz*0.3, Math.PI, 0); ctx.stroke();
+  ctx.fillStyle = color;
+  rr(cx - sz*0.48, cy - sz*0.08, sz*0.96, sz*0.72, sz*0.16); ctx.fill();
+  ctx.fillStyle = 'rgba(10,11,14,.85)';
+  ctx.beginPath(); ctx.arc(cx, cy + sz*0.24, sz*0.09, 0, Math.PI*2); ctx.fill();
+}
+
+function resize(){
+  dpr = Math.min(2, window.devicePixelRatio || 1);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W * dpr; canvas.height = H * dpr;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+}
+
+function draw(now){
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.fillStyle = '#0c0d10';
+  ctx.fillRect(0, 0, W, H);
+
+  if (shake > 0.01){
+    ctx.translate((Math.random()-0.5) * shake * 10, (Math.random()-0.5) * shake * 10);
+  }
+
+  const s = cam.s;
+  const left = s2wX(0), right = s2wX(W), top = s2wY(0), bottom = s2wY(H);
+  const bx0 = Math.floor(left / P), bx1 = Math.floor(right / P);
+  const by0 = Math.floor(top / P), by1 = Math.floor(bottom / P);
+
+  if (s >= MAP_S) drawBoards(bx0, bx1, by0, by1, s);
+  else drawMapView(bx0, bx1, by0, by1, s);
+
+  drawEffects(now);
+  updateHover();
+}
+
+function drawBoards(bx0, bx1, by0, by1, s){
+  const cellPx = C * s;
+  const sep = Math.max(1, Math.round(1.6 * s));
+  const pad = GAP * s * 0.5;
+  const detail = cellPx >= 9;
+
+  for (let by = by0; by <= by1; by++) for (let bx = bx0; bx <= bx1; bx++){
+    const b = peek(bx, by);
+    const px = w2sX(bx * P), py = w2sY(by * P);
+    const side = 9 * cellPx;
+
+    // plate: thicker separating band + stroke around each 9x9 board
+    const strokeCol = b && b.s === 3 ? 'rgba(229,72,77,.65)'
+                    : b && b.s === 2 ? 'rgba(61,220,120,.55)'
+                    : 'rgba(148,158,172,.30)';
+    ctx.fillStyle = '#16181c';
+    rr(px - pad, py - pad, side + pad*2, side + pad*2, Math.max(2, 4*s)); ctx.fill();
+    ctx.strokeStyle = strokeCol;
+    ctx.lineWidth = Math.max(1.5, 2.6 * s);
+    ctx.stroke();
+
+    // cells
+    for (let ly = 0; ly < 9; ly++) for (let lx = 0; lx < 9; lx++){
+      const csx = px + lx * cellPx, csy = py + ly * cellPx;
+      if (csx > W + 4 || csy > H + 4 || csx + cellPx < -4 || csy + cellPx < -4) continue;
+      const st = b ? b.cells[ly*9 + lx] : 0;
+      const sz = cellPx - sep;
+
+      if (st === 1){                                   // revealed
+        ctx.fillStyle = '#22242a';
+        ctx.fillRect(csx, csy, sz, sz);
+        if (detail){
+          ctx.fillStyle = 'rgba(0,0,0,.28)';
+          ctx.fillRect(csx, csy, sz, Math.max(1, 1.2*s));
+        }
+      } else if (st === 6){                            // exploded mine
+        ctx.fillStyle = '#c03535';
+        ctx.fillRect(csx, csy, sz, sz);
+      } else {                                         // hidden / marked
+        ctx.fillStyle = '#35383f';
+        ctx.fillRect(csx, csy, sz, sz);
+        if (detail){
+          ctx.fillStyle = 'rgba(255,255,255,.07)';
+          ctx.fillRect(csx, csy, sz, Math.max(1, 1.4*s));
+          ctx.fillStyle = 'rgba(0,0,0,.22)';
+          ctx.fillRect(csx, csy + sz - Math.max(1,1.4*s), sz, Math.max(1, 1.4*s));
+        }
+      }
+
+      if (!detail) continue;
+      const cx = csx + cellPx/2, cy = csy + cellPx/2;
+
+      if (st === 1){
+        const n = numberNG(bx*9 + lx, by*9 + ly);
+        if (n > 0){
+          ctx.fillStyle = NUM_COLORS[n];
+          ctx.font = '800 ' + Math.round(cellPx*0.6) + "px 'Segoe UI', system-ui, sans-serif";
+          ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText(n, cx, cy + cellPx*0.04);
+        }
+      } else if (st === 2) drawFlagIcon(cx, cy, cellPx, '#ff5b5b');
+      else if (st === 5){ drawFlagIcon(cx, cy, cellPx, '#ff5b5b');
+        ctx.fillStyle = '#3ddc78';
+        ctx.beginPath(); ctx.arc(cx + cellPx*0.26, cy + cellPx*0.28, Math.max(1.4, cellPx*0.07), 0, Math.PI*2); ctx.fill();
+      }
+      else if (st === 4){ drawFlagIcon(cx, cy, cellPx, '#9aa0ab'); drawWrongX(cx, cy, cellPx); }
+      else if (st === 3){
+        ctx.fillStyle = '#9aa0ab';
+        ctx.font = '800 ' + Math.round(cellPx*0.6) + "px 'Segoe UI', system-ui, sans-serif";
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('?', cx, cy + cellPx*0.04);
+      }
+      else if (st === 6) drawMineIcon(cx, cy, cellPx*0.24, '#1c1e22', true);
+    }
+
+    // locked overlay
+    if (b && b.s === 3){
+      ctx.fillStyle = 'rgba(9,10,13,.52)';
+      rr(px - pad, py - pad, side + pad*2, side + pad*2, Math.max(2, 4*s)); ctx.fill();
+      const ccx = px + side/2, ccy = py + side/2;
+      drawLockGlyph(ccx, ccy, Math.min(64, Math.max(18, cellPx*1.9)), 'rgba(255,140,140,.95)');
+      if (cellPx > 15){
+        ctx.fillStyle = 'rgba(255,150,150,.9)';
+        ctx.font = '700 ' + Math.round(cellPx*0.44) + "px 'Segoe UI', system-ui, sans-serif";
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText('LOCKED', ccx, ccy + Math.min(64, Math.max(18, cellPx*1.9))*0.85);
+      }
+    }
+  }
+
+  // hover highlight
+  if (mouse.in && hoverCell){
+    const { gx, gy, ok } = hoverCell;
+    if (ok){
+      const a = splitCell(gx, gy);
+      const hx = w2sX(a.bx*P + a.lx*C), hy = w2sY(a.by*P + a.ly*C);
+      ctx.strokeStyle = 'rgba(255,255,255,.85)';
+      ctx.lineWidth = Math.max(1.2, 1.6*s);
+      ctx.strokeRect(hx + sep/2, hy + sep/2, cellPx - sep*1.0, cellPx - sep*1.0);
+    }
+  }
+}
+
+function drawMapView(bx0, bx1, by0, by1, s){
+  const tile = P * s;
+  const pad = Math.max(1, tile * 0.14);
+  const hoverB = (mouse.in) ? { bx: Math.floor(s2wX(mouse.x)/P), by: Math.floor(s2wY(mouse.y)/P) } : null;
+
+  for (let by = by0; by <= by1; by++) for (let bx = bx0; bx <= bx1; bx++){
+    const b = peek(bx, by);
+    let col = MAP_COLORS.untouched;
+    if (b){
+      if (b.s === 2) col = MAP_COLORS.done;
+      else if (b.s === 3) col = MAP_COLORS.locked;
+      else if (b.s === 1) col = MAP_COLORS.progress;
+    }
+    const sx = w2sX(bx * P), sy = w2sY(by * P);
+    ctx.fillStyle = col;
+    if (tile >= 5){ rr(sx + pad/2, sy + pad/2, tile - pad, tile - pad, Math.min(3, tile*0.18)); ctx.fill(); }
+    else ctx.fillRect(sx + pad/2, sy + pad/2, Math.max(1, tile - pad), Math.max(1, tile - pad));
+
+    if (tile >= 26){
+      const ccx = sx + tile/2, ccy = sy + tile/2;
+      if (b && b.s === 3) drawLockGlyph(ccx, ccy, tile*0.42, 'rgba(255,255,255,.9)');
+      else if (b && b.s === 2){
+        ctx.strokeStyle = 'rgba(255,255,255,.92)'; ctx.lineWidth = Math.max(1.5, tile*0.07); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.beginPath();
+        ctx.moveTo(ccx - tile*0.16, ccy + tile*0.01);
+        ctx.lineTo(ccx - tile*0.03, ccy + tile*0.14);
+        ctx.lineTo(ccx + tile*0.18, ccy - tile*0.13);
+        ctx.stroke();
+      }
+    }
+  }
+  if (hoverB){
+    ctx.strokeStyle = 'rgba(255,255,255,.8)';
+    ctx.lineWidth = 1.5;
+    const sx = w2sX(hoverB.bx * P), sy = w2sY(hoverB.by * P);
+    rr(sx + pad/2, sy + pad/2, tile - pad, tile - pad, Math.min(3, tile*0.18)); ctx.stroke();
+  }
+}
+
+function drawEffects(now){
+  const s = cam.s;
+  // explosion rings
+  explosions = explosions.filter(e => (now - e.t0) < 700);
+  for (const e of explosions){
+    const age = (now - e.t0) / 700;
+    ctx.strokeStyle = 'rgba(255,90,90,' + (0.85 * (1-age)) + ')';
+    ctx.lineWidth = Math.max(1.5, 4*s*(1-age));
+    ctx.beginPath();
+    ctx.arc(w2sX(e.wx), w2sY(e.wy), (C*0.5 + age * C * 4.2) * s, 0, Math.PI*2);
+    ctx.stroke();
+  }
+  // floating texts
+  floats = floats.filter(f => (now - f.t0) < 1500);
+  for (const f of floats){
+    const age = (now - f.t0) / 1500;
+    ctx.globalAlpha = 1 - age*age;
+    ctx.fillStyle = f.color;
+    ctx.font = "800 " + Math.max(13, Math.round(15*s)) + "px 'Segoe UI', system-ui, sans-serif";
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(f.text, w2sX(f.wx), w2sY(f.wy) - age * 46);
+    ctx.globalAlpha = 1;
+  }
+}
+
+/* ---------- hover & status ---------- */
+let hoverCell = null;
+function updateHover(){
+  hoverCell = null;
+  let cursor = 'default', info = '';
+  const mapMode = cam.s < MAP_S;
+
+  if (mouse.in){
+    if (mapMode){
+      cursor = 'pointer';
+      const bx = Math.floor(s2wX(mouse.x)/P), by = Math.floor(s2wY(mouse.y)/P);
+      const b = peek(bx, by);
+      const st = !b ? 'untouched' : ['untouched','in progress','cleared','locked'][b.s];
+      info = 'Board (' + bx + ', ' + by + ') · ' + st + ' — click to jump in';
+    } else {
+      const c = pickCell(mouse.x, mouse.y);
+      if (c){
+        const a = splitCell(c.gx, c.gy);
+        const b = peek(a.bx, a.by);
+        const i = a.ly*9 + a.lx;
+        const st = b ? b.cells[i] : 0;
+        let ok = false;
+        if (b && b.s === 3) ok = true;                       // clickable -> opens lock panel
+        else if (b && b.s === 2) ok = false;
+        else if (st === 1) ok = true;                        // chord
+        else if (st === 0 && canReveal(c.gx, c.gy, b)) ok = true;
+        else if ((st === 0 || st === 3 || st === 4) && canFlag(c.gx, c.gy)) ok = true;
+        else if (st === 3 || st === 4) ok = true;
+        hoverCell = { gx: c.gx, gy: c.gy, ok };
+        if (ok) cursor = 'pointer';
+
+        if (b && b.s === 3){
+          info = 'Board (' + a.bx + ', ' + a.by + ') · <b style="color:#ff9c9c">locked</b> · ' + b.m + ' mines — click for options';
+        } else if (b && b.s > 0){
+          let flags = 0;
+          for (let k=0;k<81;k++) if (b.cells[k]===2 || b.cells[k]===5) flags++;
+          const name = b.s === 2 ? 'cleared' : 'in progress';
+          info = 'Board (' + a.bx + ', ' + a.by + ') · ' + b.m + ' mines · ' + flags + ' flagged · ' + name;
+        } else if (st === 0 && !started){
+          info = 'Board (' + a.bx + ', ' + a.by + ') · first click is always safe';
+        } else {
+          info = 'Board (' + a.bx + ', ' + a.by + ') · <span class="dim">unexplored</span>';
+        }
+      } else info = '<span class="dim">Between boards…</span>';
+    }
+  }
+  if (cursor !== lastCursor){ canvas.style.cursor = cursor; lastCursor = cursor; }
+  if (info !== lastInfo){ $('boardInfo').innerHTML = info || '<span class="dim">Hover a board…</span>'; lastInfo = info; }
+}
+
+/* ---------- HUD / UI ---------- */
+function updateHUD(){
+  $('coinVal').textContent = coins;
+  $('doneVal').textContent = boardsDone;
+}
+function flashCoins(){
+  const el = $('coinCard');
+  el.classList.remove('pulse'); void el.offsetWidth; el.classList.add('pulse');
+}
+function toast(msg, cls){
+  const box = $('toasts');
+  while (box.children.length >= 4) box.removeChild(box.firstChild);
+  const t = document.createElement('div');
+  t.className = 'toast ' + (cls || '');
+  t.textContent = msg;
+  box.appendChild(t);
+  requestAnimationFrame(() => t.classList.add('show'));
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 350); }, 2800);
+}
+
+/* lock panel */
+let lockSig = '';
+function openLockPanel(b){
+  if (b.s !== 3) return;
+  lockBoard = b; lockSig = '';
+  refreshLockPanel();
+  $('lockOverlay').classList.remove('hidden');
+}
+function refreshLockPanel(){
+  if (!lockBoard) return;
+  const b = lockBoard;
+  const k = surroundingsCleared(b);
+  const cost = unlockCost(b);
+  const sig = b.bx + ',' + b.by + '|' + k + '|' + cost + '|' + coins;
+  if (sig === lockSig) return;
+  lockSig = sig;
+  $('lkMines').textContent = b.m;
+  $('lkProg').textContent = k + ' / 8';
+  $('lkBar').style.width = (k/8*100) + '%';
+  $('payBtn').innerHTML = 'Unlock — ' + cost + ' coins &nbsp;<span style="opacity:.75">(you have ' + coins + ')</span>';
+  $('payBtn').disabled = coins < cost;
+  $('lkNote').textContent = coins < cost
+    ? 'Not enough coins — clear surrounding boards to unlock it for free.'
+    : 'Flag review on unlock: correct flags marked, wrong flags crossed out, triggered mine auto-flagged.';
+}
+function closeOverlays(){
+  lockBoard = null; lockSig = '';
+  $('lockOverlay').classList.add('hidden');
+  $('confirmOverlay').classList.add('hidden');
+}
+function bindUI(){
+  $('lockClose').onclick = closeOverlays;
+  $('lockOverlay').addEventListener('mousedown', e => { if (e.target === $('lockOverlay')) closeOverlays(); });
+  $('confirmOverlay').addEventListener('mousedown', e => { if (e.target === $('confirmOverlay')) closeOverlays(); });
+  $('payBtn').onclick = () => {
+    if (!lockBoard) return;
+    const cost = unlockCost(lockBoard);
+    if (coins < cost) return;
+    const b = lockBoard;
+    coins -= cost;
+    closeOverlays();
+    unlockBoard(b);
+    toast('Unlocked for ' + cost + ' coins','gold');
+    updateHUD(); saveSoon();
+  };
+  $('newGameBtn').onclick = () => $('confirmOverlay').classList.remove('hidden');
+  $('cancelBtn').onclick = () => $('confirmOverlay').classList.add('hidden');
+  $('resetBtn').onclick = () => {
+    localStorage.removeItem(SAVE_KEY);
+    seed = (Math.random() * 0x7fffffff) >>> 0;
+    boards = new Map();
+    coins = 0; started = false; boardsDone = 0;
+    cam = { x: 9*C/2, y: 9*C/2, s: 1 };
+    tgt = { x: cam.x, y: cam.y, s: 1 };
+    explosions = []; floats = [];
+    closeOverlays();
+    $('startHint').classList.remove('hidden');
+    updateHUD(); saveNow();
+    toast('New game started — good luck','good');
+  };
+}
+
+/* ---------- main loop ---------- */
+let last = performance.now();
+function loop(now){
+  requestAnimationFrame(loop);
+  const dt = Math.min(0.05, (now - last) / 1000); last = now;
+
+  // keyboard pan
+  let kx = 0, ky = 0;
+  if (keys.has('KeyW') || keys.has('ArrowUp')) ky -= 1;
+  if (keys.has('KeyS') || keys.has('ArrowDown')) ky += 1;
+  if (keys.has('KeyA') || keys.has('ArrowLeft')) kx -= 1;
+  if (keys.has('KeyD') || keys.has('ArrowRight')) kx += 1;
+  if (kx || ky){
+    const l = Math.hypot(kx, ky);
+    const sp = 760 * dt / cam.s;
+    tgt.x += kx/l * sp; tgt.y += ky/l * sp;
+  }
+
+  // smooth zoom (anchored to cursor)
+  const fz = 1 - Math.pow(0.0015, dt);
+  if (cam.s !== tgt.s){
+    cam.s += (tgt.s - cam.s) * fz;
+    if (Math.abs(tgt.s - cam.s) < 0.0004) cam.s = tgt.s;
+    if (zoomAnchor){
+      cam.x = zoomAnchor.wx - (zoomAnchor.mx - W/2) / cam.s;
+      cam.y = zoomAnchor.wy - (zoomAnchor.my - H/2) / cam.s;
+      tgt.x = cam.x; tgt.y = cam.y;
+      if (cam.s === tgt.s) zoomAnchor = null;
+    }
+  }
+  // smooth pan
+  if (!panning && !(kx || ky)){
+    const fp = 1 - Math.pow(0.001, dt);
+    cam.x += (tgt.x - cam.x) * fp;
+    cam.y += (tgt.y - cam.y) * fp;
+  } else {
+    cam.x += (tgt.x - cam.x) * 0.5;
+    cam.y += (tgt.y - cam.y) * 0.5;
+  }
+
+  shake *= Math.pow(0.03, dt); if (shake < 0.01) shake = 0;
+
+  // auto-close lock panel if its board got unlocked elsewhere
+  if (lockBoard && lockBoard.s !== 3) closeOverlays();
+  else if (lockBoard) refreshLockPanel();
+
+  $('legend').classList.toggle('on', cam.s < MAP_S * 1.2);
+
+  draw(now);
+}
+
+/* ---------- boot ---------- */
+function boot(){
+  canvas = $('game');
+  ctx = canvas.getContext('2d');
+  const had = load();
+  if (!had) seed = (Math.random() * 0x7fffffff) >>> 0;
+  if (started) $('startHint').classList.add('hidden');
+  resize(); bindInput(); bindUI(); updateHUD();
+  requestAnimationFrame(loop);
+}
+boot();
+</script>
+</body>
+</html>
