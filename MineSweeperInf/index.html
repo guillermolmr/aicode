@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Minefield ∞ — Infinite Minesweeper</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23ff5b5b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z'/%3E%3Cline x1='4' x2='4' y1='22' y2='15'/%3E%3C/svg%3E">
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
 <style>
   *{box-sizing:border-box;margin:0;padding:0}
   html,body{height:100%;overflow:hidden}
@@ -18,7 +19,7 @@
   .vignette{position:fixed;inset:0;pointer-events:none;z-index:2;
     background:radial-gradient(120% 120% at 50% 38%,transparent 52%,rgba(0,0,0,.5) 100%)}
 
-  .hud{position:fixed;z-index:10;display:flex;gap:10px;align-items:center}
+  .hud{position:fixed;z-index:10;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
   .hud-tl{top:14px;left:14px}
   .hud-tr{top:14px;right:14px}
   .hud-bl{bottom:14px;left:14px}
@@ -41,6 +42,12 @@
   #doneCard svg{stroke:#3ddc78}
   #coinCard.pulse{animation:pulse .5s ease}
   @keyframes pulse{0%{transform:scale(1)}35%{transform:scale(1.18)}100%{transform:scale(1)}}
+  #goldenCard{border-color:rgba(255,215,0,.35);background:linear-gradient(180deg, rgba(255,215,0,.14), rgba(20,22,27,.8));}
+  #goldenCard svg{stroke:#ffd700;fill:rgba(255,215,0,.18)}
+  #goldenCard b{color:#ffd700}
+  #goldenCard.pulseGold{animation:goldPulse 1.2s ease 2}
+  @keyframes goldPulse{0%,100%{box-shadow:0 10px 28px rgba(0,0,0,.4),0 0 0 rgba(255,215,0,0)}50%{box-shadow:0 10px 28px rgba(0,0,0,.4),0 0 18px rgba(255,215,0,.55)}}
+  #goldenCard .nextHint{font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:#c9b86a;font-weight:700}
 
   .btn{
     display:inline-flex;align-items:center;gap:8px;
@@ -59,6 +66,8 @@
   .btn.primary:hover{background:#24984b;border-color:#3ddc78}
   .btn.primary:disabled{opacity:.45;cursor:not-allowed;transform:none}
   .btn.big{padding:13px 18px;font-size:14px;border-radius:12px;width:100%;justify-content:center}
+  .btn.gold{background:linear-gradient(180deg,#f5c542,#d4a017);border-color:#ffd700;color:#1a1200;text-shadow:0 1px 0 rgba(255,255,255,.4)}
+  .btn.gold:hover{background:linear-gradient(180deg,#ffcf5a,#e8b820);border-color:#ffe55a}
 
   .help{font-size:11.5px;line-height:1.85;color:#aab0bc;letter-spacing:.02em}
   .help b{color:#e6e8ec;font-weight:700}
@@ -67,8 +76,9 @@
     border:1px solid rgba(255,255,255,.14);border-bottom-width:2px;
     padding:1px 5px;border-radius:5px;color:#dde1e8;
   }
-  #boardInfo{font-size:12px;font-variant-numeric:tabular-nums;color:#c9ced8;min-width:250px;text-align:right}
+  #boardInfo{font-size:12px;font-variant-numeric:tabular-nums;color:#c9ced8;min-width:250px;text-align:right;max-width:min(420px, 42vw)}
   #boardInfo .dim{color:#7d8492}
+  #boardInfo .goldTxt{color:#ffd700;font-weight:800}
 
   .legend{display:none;position:fixed;z-index:10;left:50%;top:14px;transform:translateX(-50%);
     align-items:center;gap:16px;font-size:12px;color:#c9ced8;white-space:nowrap}
@@ -100,13 +110,13 @@
   .toast.show{opacity:1;transform:translateY(0)}
   .toast.good{border-color:rgba(61,220,120,.5);color:#7ceea4}
   .toast.bad{border-color:rgba(229,72,77,.55);color:#ff9c9c}
-  .toast.gold{border-color:rgba(245,197,66,.5);color:#ffd97a}
+  .toast.gold{border-color:rgba(245,197,66,.55);color:#ffd97a;background:linear-gradient(180deg,rgba(58,48,12,.92),rgba(22,24,29,.92));box-shadow:0 10px 28px rgba(0,0,0,.5),0 0 16px rgba(255,215,0,.28)}
   .toast.info{border-color:rgba(120,160,255,.5);color:#a9c3ff}
 
   .overlay{position:fixed;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;
     background:rgba(6,7,10,.6);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px)}
   .modal{
-    position:relative;width:min(400px,92vw);
+    position:relative;width:min(420px,92vw);
     background:rgba(24,26,32,.96);border:1px solid rgba(255,255,255,.1);
     border-radius:20px;padding:28px;box-shadow:0 30px 80px rgba(0,0,0,.6);
   }
@@ -114,12 +124,16 @@
   .modal h2 svg{width:20px;height:20px}
   .modal h2.red{color:#ff8383}
   .modal h2.red svg{stroke:#ff8383}
+  .modal h2.gold{color:#ffd700}
+  .modal h2.gold svg{stroke:#ffd700}
   .modal p.muted{color:#9aa1ae;font-size:13px;margin-top:8px;line-height:1.55}
   .modal .rows{margin:18px 0;display:flex;flex-direction:column;gap:10px;font-size:13.5px;color:#c9ced8}
   .modal .rows .row{display:flex;justify-content:space-between;align-items:center}
   .modal .rows b{color:#fff;font-variant-numeric:tabular-nums}
+  .modal .rows b.gold{color:#ffd700}
   .bar{height:7px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden}
   .bar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,#2ea85c,#3ddc78);transition:width .3s ease}
+  .bar.gold i{background:linear-gradient(90deg,#d4a017,#ffd700)}
   .modal .actions{display:flex;gap:10px;margin-top:22px}
   .modal .actions .btn{flex:1;justify-content:center}
   .btn.solid-danger{background:#a02b31;border-color:#e5484d;color:#fff}
@@ -132,6 +146,8 @@
   .icon-btn:hover{color:#fff;border-color:rgba(255,255,255,.3)}
   .icon-btn svg{width:14px;height:14px}
   .modal .fine{margin-top:12px;font-size:11.5px;color:#7d8492;text-align:center}
+  .goldBadge{display:inline-flex;align-items:center;gap:6px;background:linear-gradient(180deg,rgba(255,215,0,.22),rgba(255,215,0,.06));border:1px solid rgba(255,215,0,.45);color:#ffd700;border-radius:99px;padding:4px 10px;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+  .goldBadge svg{width:12px;height:12px}
 </style>
 </head>
 <body>
@@ -151,6 +167,10 @@
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
     <span id="doneVal">0</span><small>cleared</small>
   </div>
+  <div class="card stat" id="goldenCard" title="Golden boards — every 10 clears spawns a golden board (20-30 mines, 50-60 coins) within 3 boards of explored area">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+    <span id="goldenProg">10</span><small>to gold</small>
+  </div>
 </header>
 
 <div class="hud hud-tr">
@@ -163,7 +183,7 @@
 <div class="hud hud-bl card help">
   <b>Left click</b> reveal &nbsp;·&nbsp; <b>Right click</b> flag → <b>?</b> → clear<br>
   <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> / arrows pan &nbsp;·&nbsp; <b>Middle-drag</b> pan<br>
-  <b>Scroll</b> zoom — zoom far out for the world map
+  <b>Scroll</b> zoom — zoom far out for the world map · <span style="color:#ffd700;font-weight:700">★ Golden boards: 50-60 coins</span>
 </div>
 
 <div class="hud hud-br card" id="boardInfo"><span class="dim">Hover a board…</span></div>
@@ -173,12 +193,13 @@
   <span class="lg"><i style="background:#c7c9cc"></i>In progress</span>
   <span class="lg"><i style="background:#e5484d"></i>Locked</span>
   <span class="lg"><i style="background:#2C2D2D;box-shadow:inset 0 0 0 1px #4a4d52"></i>Untouched</span>
+  <span class="lg"><i style="background:#ffd700;box-shadow:0 0 8px rgba(255,215,0,.6)"></i>Golden</span>
   <span class="dim">· click a board to jump in</span>
 </div>
 
 <div id="startHint">
   <h1>Click any tile to <span>begin</span></h1>
-  <p>The first board has exactly 8 mines — and your first click is always safe.</p>
+  <p>The first board has exactly 8 mines — and your first click is always safe.<br><span style="color:#ffd700">Every 10 boards cleared spawns a Golden board nearby — 20-30 mines for 50-60 coins!</span></p>
 </div>
 
 <div id="toasts"></div>
@@ -189,18 +210,44 @@
     <button class="icon-btn" id="lockClose" title="Close">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
     </button>
-    <h2 class="red">
+    <h2 class="red" id="lockTitle">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
-      Board locked
+      <span>Board locked</span>
     </h2>
-    <p class="muted">A mine detonated on this board. Clear all 8 surrounding boards to unlock it — or pay to break in early.</p>
+    <p class="muted" id="lockDesc">A mine detonated on this board. Clear all 8 surrounding boards to unlock it — or pay to break in early.</p>
     <div class="rows">
       <div class="row"><span>Mines on this board</span><b id="lkMines">–</b></div>
+      <div class="row" id="lkRewardRow" style="display:none"><span>Golden reward on clear</span><b class="gold" id="lkReward">50-60 coins</b></div>
       <div class="row"><span>Surrounding boards cleared</span><b id="lkProg">0 / 8</b></div>
-      <div class="bar"><i id="lkBar" style="width:0%"></i></div>
+      <div class="bar" id="lkBarWrap"><i id="lkBar" style="width:0%"></i></div>
     </div>
     <button class="btn primary big" id="payBtn">Unlock</button>
     <p class="fine" id="lkNote"></p>
+  </div>
+</div>
+
+<!-- Golden board info panel -->
+<div class="overlay hidden" id="goldOverlay">
+  <div class="modal" style="border-color:rgba(255,215,0,.35);background:linear-gradient(180deg,rgba(36,32,14,.98),rgba(24,26,32,.96))">
+    <button class="icon-btn" id="goldClose" title="Close">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>
+    </button>
+    <div class="goldBadge" style="margin-bottom:12px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      Golden Board
+    </div>
+    <h2 class="gold" style="margin-top:4px">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="8" r="6"/><path d="M18.09 10.37A6 6 0 1 1 10.34 18"/><path d="M7 6h1v4"/><path d="m16.71 13.88.7.71-2.82 2.82"/></svg>
+      Untouched treasure!
+    </h2>
+    <p class="muted">This board was marked as <b style="color:#ffd700">GOLDEN</b> because you cleared 10 boards. It lies at most 3 boards away from your explored frontier.</p>
+    <div class="rows">
+      <div class="row"><span>Mines on this board</span><b class="gold" id="gdMines">–</b></div>
+      <div class="row"><span>Reward on clear</span><b class="gold" id="gdReward">–</b></div>
+      <div class="row"><span>Distance rule</span><b style="color:#c9b86a;font-size:11px;letter-spacing:.04em">≤ 3 boards from explored</b></div>
+    </div>
+    <button class="btn gold big" id="goldJumpBtn">Start golden board</button>
+    <p class="fine">Golden boards have 20–30 mines and pay 50–60 coins (more mines = more coins).</p>
   </div>
 </div>
 
@@ -222,7 +269,7 @@
 <script>
 'use strict';
 /* ============================================================
-   MINEFIELD ∞ — infinite grid of 9x9 minesweeper boards
+   MINEFIELD ∞ — infinite grid of 9x9 minesweeper boards + GOLDEN
    ============================================================ */
 const $ = id => document.getElementById(id);
 
@@ -233,13 +280,17 @@ const P = 9 * C + GAP;     // board pitch
 const MIN_S = 0.04, MAX_S = 3, MAP_S = 0.18;
 const SAVE_KEY = 'minefield-infinite-v1';
 const NUM_COLORS = [null,'#5b8cff','#4ade80','#ff5b5b','#b78bff','#ff9f43','#4dd0e1','#ff6fb1','#9aa0a6'];
-const MAP_COLORS = { untouched:'#2C2D2D', progress:'#c7c9cc', done:'#31c461', locked:'#e5484d' };
+const MAP_COLORS = { untouched:'#2C2D2D', progress:'#c7c9cc', done:'#31c461', locked:'#e5484d', golden:'#ffd700', goldenDone:'#9a7a00', goldenProgress:'#ffdd57' };
+
+/* golden constants */
+const GOLDEN_MINES_MIN = 20, GOLDEN_MINES_MAX = 30;
+const GOLDEN_REWARD_MIN = 50, GOLDEN_REWARD_MAX = 60;
 
 /* ---------- state ---------- */
 let seed = 1;
 let coins = 0;
-let started = false;          // global first click done
-let boards = new Map();       // "bx,by" -> board
+let started = false;
+let boards = new Map();
 let boardsDone = 0;
 let cam = { x: 9*C/2, y: 9*C/2, s: 1 };
 let tgt = { x: cam.x, y: cam.y, s: 1 };
@@ -250,7 +301,7 @@ let zoomAnchor = null;
 let keys = new Set();
 let panning = false, panLast = { x: 0, y: 0 };
 let explosions = [], floats = [];
-let shake = 0, saveTimer = null, lockBoard = null;
+let shake = 0, saveTimer = null, lockBoard = null, goldBoard = null;
 let lastInfo = '', lastCursor = '';
 
 /* ---------- rng ---------- */
@@ -266,7 +317,7 @@ function boardHash(bx,by){
 /* ---------- boards ---------- */
 function makeBoard(bx, by){
   const rng = mulberry32(boardHash(bx, by));
-  const m = 8 + Math.floor(rng() * 25);           // 8..32 mines
+  const m = 8 + Math.floor(rng() * 25);
   const mines = new Uint8Array(81);
   const idx = Array.from({length:81},(_,i)=>i);
   for (let i = 0; i < m; i++){
@@ -274,9 +325,38 @@ function makeBoard(bx, by){
     const t = idx[i]; idx[i] = idx[j]; idx[j] = t;
     mines[idx[i]] = 1;
   }
-  return { bx, by, m, mines, cells: new Uint8Array(81), s: 0, t: -1 };
-  // cells: 0 hidden, 1 revealed, 2 flag, 3 question, 4 wrong-flag(X), 5 correct flag, 6 exploded mine
-  // s: 0 untouched, 1 in progress, 2 cleared, 3 locked
+  return { bx, by, m, mines, cells: new Uint8Array(81), s: 0, t: -1, golden:false };
+}
+function makeGoldenBoard(bx,by){
+  const rng = mulberry32((boardHash(bx, by) ^ 0x9d2c5680) >>>0);
+  const m = GOLDEN_MINES_MIN + Math.floor(rng() * (GOLDEN_MINES_MAX - GOLDEN_MINES_MIN + 1));
+  const mines = new Uint8Array(81);
+  const idx = Array.from({length:81},(_,i)=>i);
+  for (let i = 0; i < m; i++){
+    const j = i + Math.floor(rng() * (81 - i));
+    const t = idx[i]; idx[i] = idx[j]; idx[j] = t;
+    mines[idx[i]] = 1;
+  }
+  return { bx, by, m, mines, cells: new Uint8Array(81), s: 0, t: -1, golden:true };
+}
+function convertToGolden(b){
+  if (b.golden) return b;
+  const rng = mulberry32((boardHash(b.bx, b.by) ^ 0x9d2c5680) >>>0);
+  const m = GOLDEN_MINES_MIN + Math.floor(rng() * (GOLDEN_MINES_MAX - GOLDEN_MINES_MIN + 1));
+  const mines = new Uint8Array(81);
+  const idx = Array.from({length:81},(_,i)=>i);
+  for (let i = 0; i < m; i++){
+    const j = i + Math.floor(rng() * (81 - i));
+    const t = idx[i]; idx[i] = idx[j]; idx[j] = t;
+    mines[idx[i]] = 1;
+  }
+  b.m = m; b.mines = mines; b.golden = true;
+  return b;
+}
+function goldenReward(m){
+  // 20 -> 50, 30 -> 60 linear
+  const clamped = Math.max(GOLDEN_MINES_MIN, Math.min(GOLDEN_MINES_MAX, m));
+  return GOLDEN_REWARD_MIN + (clamped - GOLDEN_MINES_MIN) * (GOLDEN_REWARD_MAX - GOLDEN_REWARD_MIN) / (GOLDEN_MINES_MAX - GOLDEN_MINES_MIN);
 }
 function getBoard(bx, by){
   const k = bx + ',' + by;
@@ -293,7 +373,7 @@ function cellStateNG(gx, gy){
   const a = splitCell(gx, gy); const b = peek(a.bx, a.by);
   return b ? b.cells[a.ly*9 + a.lx] : 0;
 }
-function countMines(gx, gy){ // generates neighbor boards as needed (persisted)
+function countMines(gx, gy){
   let n = 0;
   for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++){
     if (!dx && !dy) continue;
@@ -302,7 +382,7 @@ function countMines(gx, gy){ // generates neighbor boards as needed (persisted)
   }
   return n;
 }
-function numberNG(gx, gy){ // draw-time, no generation
+function numberNG(gx, gy){
   let n = 0;
   for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++){
     if (!dx && !dy) continue;
@@ -327,8 +407,6 @@ function neighborBoardHasReveal(bx, by){
   }
   return false;
 }
-/* interaction rules: touch only cells adjacent to revealed cells;
-   (exception: seed a virgin board that borders explored territory, and the global first click) */
 function canReveal(gx, gy, b){
   if (!started) return true;
   if (hasRevealedNeighbor(gx, gy)) return true;
@@ -351,7 +429,91 @@ function applyFirstClick(b, lx, ly){
     const j = Math.floor(rng()*(i+1)); const t=spots[i]; spots[i]=spots[j]; spots[j]=t;
   }
   b.mines.fill(0); b.m = 8;
+  // keep golden flag? First board should be not golden regardless
+  if (b.golden){
+    b.golden = false;
+  }
   for (let k=0;k<8;k++) b.mines[spots[k]] = 1;
+}
+
+/* ---------- golden spawning ---------- */
+function findGoldenCandidates(){
+  const touched = [];
+  boards.forEach(b=>{ if(b.s!==0) touched.push(b); });
+  if (touched.length===0){
+    // use origin as anchor if nothing touched yet (should not happen after 10 clears)
+    touched.push({bx:0,by:0});
+  }
+  const candidates = new Map();
+  for (const t of touched){
+    for(let dy=-3; dy<=3; dy++) for(let dx=-3; dx<=3; dx++){
+      if(dx===0 && dy===0) continue;
+      if(Math.max(Math.abs(dx),Math.abs(dy))>3) continue;
+      const nbx = t.bx+dx, nby = t.by+dy;
+      const nb = peek(nbx,nby);
+      const isUntouched = !nb || nb.s===0;
+      if(!isUntouched) continue;
+      if(nb && nb.golden) continue;
+      const key = nbx+','+nby;
+      if(!candidates.has(key)) candidates.set(key,{bx:nbx,by:nby});
+    }
+  }
+  // If still empty (isolated), expand search a bit
+  if(candidates.size===0){
+    // find any untouched board up to distance 5 as fallback
+    for(const t of touched){
+      for(let dy=-5; dy<=5; dy++) for(let dx=-5; dx<=5; dx++){
+        if(Math.max(Math.abs(dx),Math.abs(dy))>5) continue;
+        const nbx=t.bx+dx, nby=t.by+dy;
+        const nb=peek(nbx,nby);
+        if(!nb || nb.s===0){
+          if(nb && nb.golden) continue;
+          const key=nbx+','+nby;
+          if(!candidates.has(key)) candidates.set(key,{bx:nbx,by:nby});
+        }
+      }
+    }
+  }
+  return Array.from(candidates.values());
+}
+function countGoldenTotal(){
+  let c=0; boards.forEach(b=>{ if(b.golden) c++; });
+  return c;
+}
+function countGoldenActive(){
+  let c=0; boards.forEach(b=>{ if(b.golden && b.s!==2) c++; });
+  return c;
+}
+function spawnGoldenBoard(){
+  const cands = findGoldenCandidates();
+  if(cands.length===0){
+    console.warn('No candidate for golden board');
+    return null;
+  }
+  const pick = cands[Math.floor(Math.random()*cands.length)];
+  let b = peek(pick.bx,pick.by);
+  if(!b){
+    b = makeGoldenBoard(pick.bx,pick.by);
+    boards.set(pick.bx+','+pick.by,b);
+  } else {
+    convertToGolden(b);
+  }
+  saveSoon();
+  // visual notification
+  const reward = Math.round(goldenReward(b.m));
+  toast('★ Golden board at ('+b.bx+', '+b.by+') — '+b.m+' mines → '+reward+' coins!','gold');
+  floats.push({ wx: b.bx*P + 9*C/2, wy: b.by*P + 9*C/2, text:'★ GOLDEN ★', t0: performance.now(), color:'#ffd700' });
+  // subtle camera hint? pulse golden card
+  const gc = $('goldenCard');
+  gc.classList.remove('pulseGold'); void gc.offsetWidth; gc.classList.add('pulseGold');
+  // add extra explosion-like golden burst
+  for(let i=0;i<3;i++){
+    setTimeout(()=>{
+      floats.push({ wx: b.bx*P + 9*C/2 + (Math.random()-0.5)*40, wy: b.by*P + 9*C/2 + (Math.random()-0.5)*40, text:'✦', t0: performance.now(), color:'#ffe55a' });
+    }, i*180);
+  }
+  updateHUD();
+  return b;
 }
 
 /* ---------- actions ---------- */
@@ -362,9 +524,22 @@ function revealAt(gx, gy){
   if (b.s === 3){ openLockPanel(b); return; }
   const i = a.ly*9 + a.lx;
   const st = b.cells[i];
+  // if board is golden and still untouched and click anywhere, show golden info first? but allow reveal normally
+  // For golden untouched, if virgin and not adjacent? allow reveal if canReveal true
   if (st === 1){ chord(b, gx, gy, i); return; }
-  if (st === 2 || st === 5) return;                 // flagged cells can't be left-clicked
-  if (!canReveal(gx, gy, b)){ toast('You can only open tiles adjacent to revealed ones','info'); return; }
+  if (st === 2 || st === 5) return;
+  if (!canReveal(gx, gy, b)){
+    // if it's a golden board virgin, maybe still allow? But per rule, keep adjacency
+    // However for golden, we could allow click even if not adjacent? Spec says at max 3 untouched boards distance from ones touched, so it should be within 3, but still need adjacency for first tile?
+    // We already allow virgin board that borders explored territory.
+    // If not allowed, show info and maybe open golden panel
+    if(b.golden && b.s===0){
+      openGoldPanel(b);
+      return;
+    }
+    toast('You can only open tiles adjacent to revealed ones','info');
+    return;
+  }
   if (!started){
     started = true; applyFirstClick(b, a.lx, a.ly);
     $('startHint').classList.add('hidden');
@@ -425,12 +600,18 @@ function flagAt(gx, gy){
   const i = a.ly*9 + a.lx, st = b.cells[i];
   if (st === 1 || st === 6) return;
   if (st === 0){
-    if (!canFlag(gx, gy)) return;
+    if (!canFlag(gx, gy)){
+      if(b.golden && b.s===0){
+        openGoldPanel(b);
+        return;
+      }
+      return;
+    }
     b.cells[i] = 2;
   }
-  else if (st === 2 || st === 5) b.cells[i] = 3;    // flag -> question mark (visual only)
-  else if (st === 3) b.cells[i] = 0;                // question -> clear
-  else if (st === 4) b.cells[i] = 0;                // wrong-mark -> clear
+  else if (st === 2 || st === 5) b.cells[i] = 3;
+  else if (st === 3) b.cells[i] = 0;
+  else if (st === 4) b.cells[i] = 0;
   if (b.s === 0) b.s = 1;
   checkComplete(b);
   saveSoon();
@@ -438,8 +619,12 @@ function flagAt(gx, gy){
 function detonate(b, i){
   b.s = 3; b.t = i;
   shake = 1;
-  explosions.push({ wx: b.bx*P + (i%9)*C + C/2, wy: b.by*P + Math.floor(i/9)*C + C/2, t0: performance.now() });
-  toast('BOOM! Mine detonated — board locked','bad');
+  explosions.push({ wx: b.bx*P + (i%9)*C + C/2, wy: b.by*P + Math.floor(i/9)*C + C/2, t0: performance.now(), isGolden: !!b.golden });
+  if(b.golden){
+    toast('💥 Golden board locked! Clear surroundings or pay to recover the treasure','bad');
+  } else {
+    toast('BOOM! Mine detonated — board locked','bad');
+  }
   openLockPanel(b);
 }
 function checkComplete(b){
@@ -454,7 +639,7 @@ function checkComplete(b){
     }
   }
   if (!safeHidden){ finishBoard(b); return; }
-  if (!unflaggedMine && !wrongFlag){              // flawless flags -> reveal everything safe
+  if (!unflaggedMine && !wrongFlag){
     for (let i=0;i<81;i++) if (!b.mines[i] && b.cells[i] !== 1) b.cells[i] = 1;
     finishBoard(b);
   }
@@ -463,15 +648,36 @@ function finishBoard(b){
   if (b.s === 2) return;
   b.s = 2;
   for (let i=0;i<81;i++) if (b.mines[i] && b.cells[i] !== 5) b.cells[i] = 5;
-  const gain = Math.floor(b.m / 8);
+  let gain;
+  let isGold = !!b.golden;
+  if(isGold){
+    gain = Math.round(goldenReward(b.m));
+  } else {
+    gain = Math.floor(b.m / 8);
+  }
   coins += gain; boardsDone++;
-  floats.push({ wx: b.bx*P + 9*C/2, wy: b.by*P, text: '+'+gain+' coins', t0: performance.now(), color: '#ffd97a' });
-  toast('Board cleared  ·  +'+gain+' coins','gold');
+  const txt = isGold ? '★ +'+gain+' GOLD ★' : '+'+gain+' coins';
+  const col = isGold ? '#ffd700' : '#ffd97a';
+  floats.push({ wx: b.bx*P + 9*C/2, wy: b.by*P, text: txt, t0: performance.now(), color: col });
+  if(isGold){
+    toast('★ Golden board cleared! +'+gain+' coins!','gold');
+    // extra gold burst
+    for(let k=0;k<6;k++){
+      explosions.push({ wx: b.bx*P + Math.random()*9*C, wy: b.by*P + Math.random()*9*C, t0: performance.now()+k*80, isGoldBurst:true });
+    }
+  } else {
+    toast('Board cleared  ·  +'+gain+' coins', gain>=7?'gold':'good');
+  }
   flashCoins(); updateHUD(); saveSoon();
   for (let dy=-1; dy<=1; dy++) for (let dx=-1; dx<=1; dx++){
     if (!dx && !dy) continue;
     const nb = peek(b.bx+dx, b.by+dy);
     if (nb && nb.s === 3) maybeAutoUnlock(nb);
+  }
+  // golden spawn check: every 10 Boards cleared
+  if(boardsDone % 10 === 0){
+    // slight delay for dramatic effect
+    setTimeout(()=> spawnGoldenBoard(), 700);
   }
 }
 function surroundingsCleared(L){
@@ -493,13 +699,14 @@ function maybeAutoUnlock(L){
 function unlockBoard(L){
   L.s = 1;
   for (let i=0;i<81;i++)
-    if (L.cells[i] === 2) L.cells[i] = L.mines[i] ? 5 : 4;   // review flags: correct vs wrong
-  if (L.t >= 0){ L.cells[L.t] = 5; L.t = -1; }               // auto-flag the triggered mine
-  toast('Flags reviewed — correct marked green, wrong crossed out','info');
+    if (L.cells[i] === 2) L.cells[i] = L.mines[i] ? 5 : 4;
+  if (L.t >= 0){ L.cells[L.t] = 5; L.t = -1; }
+  if(L.golden) toast('Golden flags reviewed — treasure still intact!','info');
+  else toast('Flags reviewed — correct marked green, wrong crossed out','info');
   checkComplete(L);
   saveSoon();
 }
-function unlockCost(b){ return Math.round(30 + (b.m - 8) * (30/24)); } // 30 @8 mines … 60 @32 mines
+function unlockCost(b){ return Math.round(30 + (b.m - 8) * (30/24)); }
 
 /* ---------- persistence ---------- */
 function saveSoon(){ clearTimeout(saveTimer); saveTimer = setTimeout(saveNow, 350); }
@@ -509,13 +716,13 @@ function saveNow(){
     boards.forEach((b, k) => {
       const mn = [];
       for (let i=0;i<81;i++) if (b.mines[i]) mn.push(i);
-      bs[k] = { m: b.m, mn: mn.join(','), c: Array.from(b.cells).join(''), s: b.s, t: b.t };
+      bs[k] = { m: b.m, mn: mn.join(','), c: Array.from(b.cells).join(''), s: b.s, t: b.t, g: b.golden?1:0 };
     });
     localStorage.setItem(SAVE_KEY, JSON.stringify({
       v: 1, seed, coins, started,
-      cam: { x: cam.x, y: cam.y, s: tgt.s }, boards: bs
+      cam: { x: cam.x, y: cam.y, s: tgt.s }, boards: bs, boardsDone
     }));
-  }catch(e){ /* storage full / unavailable */ }
+  }catch(e){}
 }
 function load(){
   try{
@@ -525,6 +732,8 @@ function load(){
     if (d.v !== 1) return false;
     seed = d.seed >>> 0; coins = d.coins|0; started = !!d.started;
     boards = new Map();
+    boardsDone = d.boardsDone|0;
+    let maxDoneCalc = 0;
     Object.entries(d.boards || {}).forEach(([k, o]) => {
       const [bx, by] = k.split(',').map(Number);
       if (Number.isNaN(bx) || Number.isNaN(by)) return;
@@ -533,10 +742,12 @@ function load(){
       const cells = new Uint8Array(81);
       const cs = o.c || '';
       for (let i=0; i<81 && i<cs.length; i++){ const v = cs.charCodeAt(i) - 48; cells[i] = (v>=0 && v<=6) ? v : 0; }
-      const b = { bx, by, m: o.m|0, mines, cells, s: o.s|0, t: (typeof o.t === 'number') ? o.t : -1 };
-      if (b.s === 2) boardsDone++;
+      const b = { bx, by, m: o.m|0, mines, cells, s: o.s|0, t: (typeof o.t === 'number') ? o.t : -1, golden: !!o.g };
+      if (b.s === 2) maxDoneCalc++;
       boards.set(k, b);
     });
+    // fallback for old saves where boardsDone not stored
+    if (typeof d.boardsDone !== 'number') boardsDone = maxDoneCalc;
     cam = { x: d.cam.x, y: d.cam.y, s: d.cam.s };
     tgt = { x: d.cam.x, y: d.cam.y, s: d.cam.s };
     return true;
@@ -552,7 +763,7 @@ function pickCell(mx, my){
   const wx = s2wX(mx), wy = s2wY(my);
   const bx = Math.floor(wx / P), by = Math.floor(wy / P);
   const rx = wx - bx*P, ry = wy - by*P;
-  if (rx >= 9*C || ry >= 9*C) return null;        // in the gap band between boards
+  if (rx >= 9*C || ry >= 9*C) return null;
   return { gx: bx*9 + Math.floor(rx / C), gy: by*9 + Math.floor(ry / C) };
 }
 
@@ -575,6 +786,15 @@ function bindInput(){
       if (mapMode){
         const wx = s2wX(e.clientX), wy = s2wY(e.clientY);
         const bx = Math.floor(wx / P), by = Math.floor(wy / P);
+        const b = peek(bx,by);
+        // if golden and untouched, show gold panel before jump?
+        if(b && b.golden && b.s===0){
+          // center camera near but open panel
+          tgt.x = bx*P + 9*C/2; tgt.y = by*P + 9*C/2; tgt.s = 0.9;
+          zoomAnchor = null;
+          setTimeout(()=> openGoldPanel(b), 350);
+          return;
+        }
         tgt.x = bx*P + 9*C/2; tgt.y = by*P + 9*C/2; tgt.s = 0.9;
         zoomAnchor = null;
         return;
@@ -670,6 +890,30 @@ function drawLockGlyph(cx, cy, sz, color){
   ctx.fillStyle = 'rgba(10,11,14,.85)';
   ctx.beginPath(); ctx.arc(cx, cy + sz*0.24, sz*0.09, 0, Math.PI*2); ctx.fill();
 }
+function drawStar(cx, cy, outer, inner, points, rot, fill){
+  ctx.fillStyle = fill;
+  ctx.beginPath();
+  for(let i=0;i<points*2;i++){
+    const r = i%2===0 ? outer : inner;
+    const a = rot + i * Math.PI/points;
+    const x = cx + Math.cos(a)*r, y = cy + Math.sin(a)*r;
+    if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+  }
+  ctx.closePath(); ctx.fill();
+}
+function drawCoinBadge(cx, cy, sz, amount){
+  // small coin top-right
+  ctx.save();
+  ctx.shadowColor='rgba(255,215,0,.6)'; ctx.shadowBlur=8;
+  ctx.fillStyle='#ffd700';
+  ctx.beginPath(); ctx.arc(cx, cy, sz, 0, Math.PI*2); ctx.fill();
+  ctx.shadowBlur=0;
+  ctx.fillStyle='#1a1200';
+  ctx.font='700 '+Math.round(sz*0.9)+'px monospace';
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText('★', cx, cy+1);
+  ctx.restore();
+}
 
 function resize(){
   dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -692,14 +936,14 @@ function draw(now){
   const bx0 = Math.floor(left / P), bx1 = Math.floor(right / P);
   const by0 = Math.floor(top / P), by1 = Math.floor(bottom / P);
 
-  if (s >= MAP_S) drawBoards(bx0, bx1, by0, by1, s);
-  else drawMapView(bx0, bx1, by0, by1, s);
+  if (s >= MAP_S) drawBoards(bx0, bx1, by0, by1, s, now);
+  else drawMapView(bx0, bx1, by0, by1, s, now);
 
   drawEffects(now);
   updateHover();
 }
 
-function drawBoards(bx0, bx1, by0, by1, s){
+function drawBoards(bx0, bx1, by0, by1, s, now){
   const cellPx = C * s;
   const sep = Math.max(1, Math.round(1.6 * s));
   const pad = GAP * s * 0.5;
@@ -707,18 +951,60 @@ function drawBoards(bx0, bx1, by0, by1, s){
 
   for (let by = by0; by <= by1; by++) for (let bx = bx0; bx <= bx1; bx++){
     const b = peek(bx, by);
+    const isGold = !!(b && b.golden);
+    const isGoldActive = isGold && b.s !== 2;
+    const isGoldDone = isGold && b.s === 2;
     const px = w2sX(bx * P), py = w2sY(by * P);
     const side = 9 * cellPx;
 
-    // plate: thicker separating band + stroke around each 9x9 board
-    const strokeCol = b && b.s === 3 ? 'rgba(229,72,77,.65)'
-                    : b && b.s === 2 ? 'rgba(61,220,120,.55)'
-                    : 'rgba(148,158,172,.30)';
-    ctx.fillStyle = '#16181c';
-    rr(px - pad, py - pad, side + pad*2, side + pad*2, Math.max(2, 4*s)); ctx.fill();
-    ctx.strokeStyle = strokeCol;
-    ctx.lineWidth = Math.max(1.5, 2.6 * s);
-    ctx.stroke();
+    // plate
+    let strokeCol = 'rgba(148,158,172,.30)';
+    if (b){
+      if (b.s === 3) strokeCol = 'rgba(229,72,77,.65)';
+      else if (b.s === 2) strokeCol = isGoldDone ? 'rgba(255,215,0,.55)' : 'rgba(61,220,120,.55)';
+      else if (isGoldActive) strokeCol = 'rgba(255,215,0,.85)';
+    }
+    // gold shimmer shadow
+    if(isGoldActive){
+      ctx.save();
+      const pulse = 0.5 + 0.5*Math.sin(now*0.004 + bx*0.7 + by*0.5);
+      ctx.shadowColor = 'rgba(255,215,0,'+(0.35+0.35*pulse)+')';
+      ctx.shadowBlur = (12 + pulse*8)*s;
+      ctx.fillStyle = isGoldActive && b.s===0 ? '#2a2410' : '#16181c';
+      rr(px - pad, py - pad, side + pad*2, side + pad*2, Math.max(2, 4*s)); ctx.fill();
+      ctx.strokeStyle = strokeCol;
+      ctx.lineWidth = Math.max(1.8, 3.0 * s);
+      ctx.stroke();
+      ctx.restore();
+      // shimmer sweep gradient overlay
+      const sweep = (now*0.0007 + bx*0.3) % 1;
+      const gx = px - pad + (side+pad*2)*sweep;
+      ctx.save();
+      ctx.globalAlpha = 0.10 + 0.08*Math.sin(now*0.005);
+      const grad = ctx.createLinearGradient(gx-40*s, py, gx+40*s, py);
+      grad.addColorStop(0,'transparent'); grad.addColorStop(0.5,'rgba(255,240,120,.9)'); grad.addColorStop(1,'transparent');
+      ctx.fillStyle = grad;
+      rr(px - pad, py - pad, side + pad*2, side + pad*2, Math.max(2, 4*s)); ctx.fill();
+      ctx.restore();
+    } else {
+      ctx.fillStyle = '#16181c';
+      rr(px - pad, py - pad, side + pad*2, side + pad*2, Math.max(2, 4*s)); ctx.fill();
+      ctx.strokeStyle = strokeCol;
+      ctx.lineWidth = Math.max(1.5, 2.6 * s);
+      ctx.stroke();
+    }
+
+    // if gold and untouched, add central star hint when detail
+    if(isGoldActive && b.s===0 && detail && cellPx>12){
+      // subtle gold board overlay text? We'll draw star center
+      const ccx = px + side/2, ccy = py + side/2;
+      // background glow
+      ctx.save();
+      ctx.globalAlpha = 0.18;
+      ctx.fillStyle = '#ffd700';
+      rr(px - pad+2*s, py - pad+2*s, side+pad*2-4*s, side+pad*2-4*s, Math.max(2,4*s)); ctx.fill();
+      ctx.restore();
+    }
 
     // cells
     for (let ly = 0; ly < 9; ly++) for (let lx = 0; lx < 9; lx++){
@@ -727,24 +1013,42 @@ function drawBoards(bx0, bx1, by0, by1, s){
       const st = b ? b.cells[ly*9 + lx] : 0;
       const sz = cellPx - sep;
 
-      if (st === 1){                                   // revealed
-        ctx.fillStyle = '#22242a';
-        ctx.fillRect(csx, csy, sz, sz);
+      let isHiddenCell = !(st===1 || st===6);
+      let cellBg = null;
+      if (st === 1){
+        cellBg = '#22242a';
+      } else if (st === 6){
+        cellBg = '#c03535';
+      } else {
+        if(isGoldActive){
+          // gold-tinted hidden cells
+          cellBg = '#4a3f0f';
+        } else {
+          cellBg = '#35383f';
+        }
+      }
+      ctx.fillStyle = cellBg;
+      ctx.fillRect(csx, csy, sz, sz);
+      if (st === 1){
         if (detail){
           ctx.fillStyle = 'rgba(0,0,0,.28)';
           ctx.fillRect(csx, csy, sz, Math.max(1, 1.2*s));
         }
-      } else if (st === 6){                            // exploded mine
-        ctx.fillStyle = '#c03535';
-        ctx.fillRect(csx, csy, sz, sz);
-      } else {                                         // hidden / marked
-        ctx.fillStyle = '#35383f';
-        ctx.fillRect(csx, csy, sz, sz);
+      } else if (st === 6){
+        // nothing
+      } else {
         if (detail){
-          ctx.fillStyle = 'rgba(255,255,255,.07)';
-          ctx.fillRect(csx, csy, sz, Math.max(1, 1.4*s));
-          ctx.fillStyle = 'rgba(0,0,0,.22)';
-          ctx.fillRect(csx, csy + sz - Math.max(1,1.4*s), sz, Math.max(1, 1.4*s));
+          if(isGoldActive){
+            ctx.fillStyle = 'rgba(255,215,0,.16)';
+            ctx.fillRect(csx, csy, sz, Math.max(1, 1.4*s));
+            ctx.fillStyle = 'rgba(120,90,0,.35)';
+            ctx.fillRect(csx, csy + sz - Math.max(1,1.4*s), sz, Math.max(1, 1.4*s));
+          } else {
+            ctx.fillStyle = 'rgba(255,255,255,.07)';
+            ctx.fillRect(csx, csy, sz, Math.max(1, 1.4*s));
+            ctx.fillStyle = 'rgba(0,0,0,.22)';
+            ctx.fillRect(csx, csy + sz - Math.max(1,1.4*s), sz, Math.max(1, 1.4*s));
+          }
         }
       }
 
@@ -761,30 +1065,84 @@ function drawBoards(bx0, bx1, by0, by1, s){
         }
       } else if (st === 2) drawFlagIcon(cx, cy, cellPx, '#ff5b5b');
       else if (st === 5){ drawFlagIcon(cx, cy, cellPx, '#ff5b5b');
-        ctx.fillStyle = '#3ddc78';
+        ctx.fillStyle = isGold ? '#ffd700' : '#3ddc78';
         ctx.beginPath(); ctx.arc(cx + cellPx*0.26, cy + cellPx*0.28, Math.max(1.4, cellPx*0.07), 0, Math.PI*2); ctx.fill();
       }
       else if (st === 4){ drawFlagIcon(cx, cy, cellPx, '#9aa0ab'); drawWrongX(cx, cy, cellPx); }
       else if (st === 3){
-        ctx.fillStyle = '#9aa0ab';
+        ctx.fillStyle = isGoldActive ? '#ffe27a' : '#9aa0ab';
         ctx.font = '800 ' + Math.round(cellPx*0.6) + "px 'Segoe UI', system-ui, sans-serif";
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
         ctx.fillText('?', cx, cy + cellPx*0.04);
       }
       else if (st === 6) drawMineIcon(cx, cy, cellPx*0.24, '#1c1e22', true);
+      // for hidden gold cells, tiny sparkle on some cells
+      if(isGoldActive && st===0 && ((lx+ly)%3===0) && detail && cellPx>14){
+        const sparkle = 0.5+0.5*Math.sin(now*0.006 + lx*1.3 + ly*0.7 + bx*2.1);
+        if(sparkle>0.7){
+          ctx.fillStyle = 'rgba(255,240,120,'+(sparkle*0.7)+')';
+          ctx.beginPath(); ctx.arc(cx, cy, Math.max(1, cellPx*0.07),0,Math.PI*2); ctx.fill();
+        }
+      }
     }
 
     // locked overlay
     if (b && b.s === 3){
-      ctx.fillStyle = 'rgba(9,10,13,.52)';
+      ctx.fillStyle = isGoldActive ? 'rgba(40,32,8,.62)' : 'rgba(9,10,13,.52)';
       rr(px - pad, py - pad, side + pad*2, side + pad*2, Math.max(2, 4*s)); ctx.fill();
       const ccx = px + side/2, ccy = py + side/2;
-      drawLockGlyph(ccx, ccy, Math.min(64, Math.max(18, cellPx*1.9)), 'rgba(255,140,140,.95)');
+      const szLock = Math.min(64, Math.max(18, cellPx*1.9));
+      if(isGoldActive){
+        drawLockGlyph(ccx, ccy, szLock, 'rgba(255,220,80,.95)');
+        // gold ring around lock
+        ctx.strokeStyle='rgba(255,215,0,.5)'; ctx.lineWidth=2*s; ctx.beginPath(); ctx.arc(ccx, ccy, szLock*0.9,0,Math.PI*2); ctx.stroke();
+      } else {
+        drawLockGlyph(ccx, ccy, szLock, 'rgba(255,140,140,.95)');
+      }
       if (cellPx > 15){
-        ctx.fillStyle = 'rgba(255,150,150,.9)';
+        ctx.fillStyle = isGoldActive ? 'rgba(255,230,100,.95)' : 'rgba(255,150,150,.9)';
         ctx.font = '700 ' + Math.round(cellPx*0.44) + "px 'Segoe UI', system-ui, sans-serif";
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText('LOCKED', ccx, ccy + Math.min(64, Math.max(18, cellPx*1.9))*0.85);
+        ctx.fillText(isGoldActive ? 'GOLD LOCKED' : 'LOCKED', ccx, ccy + szLock*0.85);
+        if(isGoldActive && cellPx>18){
+          ctx.fillStyle='rgba(255,215,0,.85)';
+          ctx.font='600 '+Math.round(cellPx*0.32)+"px 'Segoe UI',system-ui,sans-serif";
+          ctx.fillText(Math.round(goldenReward(b.m))+' coins', ccx, ccy + szLock*1.25);
+        }
+      }
+    }
+    // golden cleared overlay? checkmark gold
+    if (isGoldDone){
+      // subtle celebration border already drawn, add star top center
+      if(detail && cellPx>12){
+        const ccx = px+side/2, ccy = py - pad - 2*s;
+        // draw small gold banner above board
+        // maybe not needed
+      }
+    }
+    // golden untouched badge corner
+    if(isGoldActive && detail){
+      const bxBadgeX = px + side - Math.max(10, cellPx*0.9), byBadgeY = py + Math.max(6, cellPx*0.35);
+      const r = Math.max(8, cellPx*0.55);
+      // badge bg
+      ctx.save();
+      ctx.shadowColor='rgba(255,215,0,.7)'; ctx.shadowBlur=6*s;
+      ctx.fillStyle='#ffd700';
+      ctx.beginPath(); ctx.arc(bxBadgeX, byBadgeY, r, 0, Math.PI*2); ctx.fill();
+      ctx.shadowBlur=0;
+      ctx.fillStyle='#1a1200';
+      ctx.font='800 '+Math.round(r*0.95)+'px serif';
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('★', bxBadgeX, byBadgeY+1);
+      ctx.restore();
+      // if board virgin, also show reward text bottom
+      if(b.s===0 && cellPx>16){
+        const ccx=px+side/2, ccy=py+side+12*s;
+        ctx.fillStyle='rgba(255,215,0,.92)';
+        ctx.font='700 '+Math.round(Math.max(9, cellPx*0.33))+"px 'Segoe UI',system-ui,sans-serif";
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        const rew = Math.round(goldenReward(b.m));
+        ctx.fillText(b.m+' mines → '+rew+' coins', ccx, ccy);
       }
     }
   }
@@ -794,15 +1152,19 @@ function drawBoards(bx0, bx1, by0, by1, s){
     const { gx, gy, ok } = hoverCell;
     if (ok){
       const a = splitCell(gx, gy);
+      const b = peek(a.bx,a.by);
+      const isGold = !!(b && b.golden && b.s!==2);
       const hx = w2sX(a.bx*P + a.lx*C), hy = w2sY(a.by*P + a.ly*C);
-      ctx.strokeStyle = 'rgba(255,255,255,.85)';
+      ctx.strokeStyle = isGold ? 'rgba(255,215,0,.95)' : 'rgba(255,255,255,.85)';
       ctx.lineWidth = Math.max(1.2, 1.6*s);
+      if(isGold) ctx.shadowColor='rgba(255,215,0,.8)', ctx.shadowBlur=6;
       ctx.strokeRect(hx + sep/2, hy + sep/2, cellPx - sep*1.0, cellPx - sep*1.0);
+      ctx.shadowBlur=0;
     }
   }
 }
 
-function drawMapView(bx0, bx1, by0, by1, s){
+function drawMapView(bx0, bx1, by0, by1, s, now){
   const tile = P * s;
   const pad = Math.max(1, tile * 0.14);
   const hoverB = (mouse.in) ? { bx: Math.floor(s2wX(mouse.x)/P), by: Math.floor(s2wY(mouse.y)/P) } : null;
@@ -810,58 +1172,122 @@ function drawMapView(bx0, bx1, by0, by1, s){
   for (let by = by0; by <= by1; by++) for (let bx = bx0; bx <= bx1; bx++){
     const b = peek(bx, by);
     let col = MAP_COLORS.untouched;
+    let isGold = !!(b && b.golden);
     if (b){
-      if (b.s === 2) col = MAP_COLORS.done;
-      else if (b.s === 3) col = MAP_COLORS.locked;
-      else if (b.s === 1) col = MAP_COLORS.progress;
+      if (b.s === 2) col = isGold ? MAP_COLORS.goldenDone : MAP_COLORS.done;
+      else if (b.s === 3) col = isGold ? '#ffb800' : MAP_COLORS.locked;
+      else if (b.s === 1) col = isGold ? MAP_COLORS.goldenProgress : MAP_COLORS.progress;
+      else if (b.s === 0) col = isGold ? MAP_COLORS.golden : MAP_COLORS.untouched;
     }
     const sx = w2sX(bx * P), sy = w2sY(by * P);
-    ctx.fillStyle = col;
-    if (tile >= 5){ rr(sx + pad/2, sy + pad/2, tile - pad, tile - pad, Math.min(3, tile*0.18)); ctx.fill(); }
-    else ctx.fillRect(sx + pad/2, sy + pad/2, Math.max(1, tile - pad), Math.max(1, tile - pad));
+    // gold glow in map
+    if(isGold && b.s!==2){
+      ctx.save();
+      const pulse = 0.5+0.5*Math.sin(now*0.004 + bx*0.9);
+      ctx.shadowColor='rgba(255,215,0,'+(0.5+0.3*pulse)+')';
+      ctx.shadowBlur= 8 + 6*pulse;
+      ctx.fillStyle = col;
+      if (tile >= 5){ rr(sx + pad/2, sy + pad/2, tile - pad, tile - pad, Math.min(3, tile*0.18)); ctx.fill(); }
+      else ctx.fillRect(sx + pad/2, sy + pad/2, Math.max(1, tile - pad), Math.max(1, tile - pad));
+      ctx.restore();
+      // star indicator if tile big enough
+      if(tile>=14){
+        ctx.fillStyle='rgba(30,20,0,.9)';
+        // small star center
+        const ccx=sx+tile/2, ccy=sy+tile/2;
+        drawStar(ccx, ccy, tile*0.28, tile*0.13, 5, -Math.PI/2, 'rgba(255,255,255,.95)');
+      }
+    } else {
+      ctx.fillStyle = col;
+      if (tile >= 5){ rr(sx + pad/2, sy + pad/2, tile - pad, tile - pad, Math.min(3, tile*0.18)); ctx.fill(); }
+      else ctx.fillRect(sx + pad/2, sy + pad/2, Math.max(1, tile - pad), Math.max(1, tile - pad));
+    }
 
     if (tile >= 26){
       const ccx = sx + tile/2, ccy = sy + tile/2;
-      if (b && b.s === 3) drawLockGlyph(ccx, ccy, tile*0.42, 'rgba(255,255,255,.9)');
+      if (b && b.s === 3){
+        if(isGold){
+          drawStar(ccx, ccy-2, tile*0.18, tile*0.08, 5, -Math.PI/2, 'rgba(255,255,255,.9)');
+        } else {
+          drawLockGlyph(ccx, ccy, tile*0.42, 'rgba(255,255,255,.9)');
+        }
+      }
       else if (b && b.s === 2){
-        ctx.strokeStyle = 'rgba(255,255,255,.92)'; ctx.lineWidth = Math.max(1.5, tile*0.07); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-        ctx.beginPath();
-        ctx.moveTo(ccx - tile*0.16, ccy + tile*0.01);
-        ctx.lineTo(ccx - tile*0.03, ccy + tile*0.14);
-        ctx.lineTo(ccx + tile*0.18, ccy - tile*0.13);
-        ctx.stroke();
+        if(isGold){
+          // crown/star for gold done
+          drawStar(ccx, ccy, tile*0.22, tile*0.11, 5, -Math.PI/2, 'rgba(255,255,255,.95)');
+        } else {
+          ctx.strokeStyle = 'rgba(255,255,255,.92)'; ctx.lineWidth = Math.max(1.5, tile*0.07); ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+          ctx.beginPath();
+          ctx.moveTo(ccx - tile*0.16, ccy + tile*0.01);
+          ctx.lineTo(ccx - tile*0.03, ccy + tile*0.14);
+          ctx.lineTo(ccx + tile*0.18, ccy - tile*0.13);
+          ctx.stroke();
+        }
+      } else if(isGold && b.s===0 && tile>=18){
+        // tiny coin hint
+        ctx.fillStyle='rgba(255,255,255,.92)';
+        ctx.font='700 '+Math.round(tile*0.28)+'px serif';
+        ctx.textAlign='center'; ctx.textBaseline='middle';
+        ctx.fillText('★', ccx, ccy+1);
       }
     }
   }
   if (hoverB){
-    ctx.strokeStyle = 'rgba(255,255,255,.8)';
-    ctx.lineWidth = 1.5;
+    const hb = peek(hoverB.bx, hoverB.by);
+    const isGoldH = !!(hb && hb.golden && hb.s!==2);
+    ctx.strokeStyle = isGoldH ? 'rgba(255,215,0,.95)' : 'rgba(255,255,255,.8)';
+    ctx.lineWidth = isGoldH ? 2 : 1.5;
+    if(isGoldH){ ctx.shadowColor='rgba(255,215,0,.6)'; ctx.shadowBlur=6; }
     const sx = w2sX(hoverB.bx * P), sy = w2sY(hoverB.by * P);
     rr(sx + pad/2, sy + pad/2, tile - pad, tile - pad, Math.min(3, tile*0.18)); ctx.stroke();
+    ctx.shadowBlur=0;
   }
 }
 
 function drawEffects(now){
   const s = cam.s;
-  // explosion rings
-  explosions = explosions.filter(e => (now - e.t0) < 700);
+  explosions = explosions.filter(e => (now - e.t0) < 800);
   for (const e of explosions){
-    const age = (now - e.t0) / 700;
-    ctx.strokeStyle = 'rgba(255,90,90,' + (0.85 * (1-age)) + ')';
-    ctx.lineWidth = Math.max(1.5, 4*s*(1-age));
-    ctx.beginPath();
-    ctx.arc(w2sX(e.wx), w2sY(e.wy), (C*0.5 + age * C * 4.2) * s, 0, Math.PI*2);
-    ctx.stroke();
+    const age = (now - e.t0) / 800;
+    if(e.isGoldBurst){
+      ctx.fillStyle='rgba(255,215,0,'+(0.8*(1-age))+')';
+      ctx.beginPath(); ctx.arc(w2sX(e.wx), w2sY(e.wy), (8+age*22)*s,0,Math.PI*2); ctx.fill();
+      // star
+      ctx.fillStyle='rgba(255,255,255,'+(1-age)+')';
+      const sz=(6+age*10)*s; drawStar(w2sX(e.wx), w2sY(e.wy), sz, sz*0.45,5, age*6, 'rgba(255,255,255,'+(1-age)+')');
+      continue;
+    }
+    if(e.isGolden){
+      ctx.strokeStyle = 'rgba(255,215,0,' + (0.85 * (1-age)) + ')';
+      ctx.lineWidth = Math.max(1.5, 6*s*(1-age));
+      ctx.beginPath();
+      ctx.arc(w2sX(e.wx), w2sY(e.wy), (C*0.6 + age * C * 5) * s, 0, Math.PI*2);
+      ctx.stroke();
+      // inner
+      ctx.strokeStyle='rgba(255,240,120,'+(0.6*(1-age))+')';
+      ctx.lineWidth=Math.max(1,2*s*(1-age));
+      ctx.beginPath(); ctx.arc(w2sX(e.wx), w2sY(e.wy), (C*0.3+age*C*3)*s,0,Math.PI*2); ctx.stroke();
+    } else {
+      ctx.strokeStyle = 'rgba(255,90,90,' + (0.85 * (1-age)) + ')';
+      ctx.lineWidth = Math.max(1.5, 4*s*(1-age));
+      ctx.beginPath();
+      ctx.arc(w2sX(e.wx), w2sY(e.wy), (C*0.5 + age * C * 4.2) * s, 0, Math.PI*2);
+      ctx.stroke();
+    }
   }
-  // floating texts
-  floats = floats.filter(f => (now - f.t0) < 1500);
+  floats = floats.filter(f => (now - f.t0) < 1800);
   for (const f of floats){
-    const age = (now - f.t0) / 1500;
+    const age = (now - f.t0) / 1800;
     ctx.globalAlpha = 1 - age*age;
     ctx.fillStyle = f.color;
-    ctx.font = "800 " + Math.max(13, Math.round(15*s)) + "px 'Segoe UI', system-ui, sans-serif";
+    // gold floats bigger
+    const isGoldFloat = f.color==='#ffd700' || f.color==='#ffe55a';
+    ctx.font = (isGoldFloat?"800 ":"800 ") + Math.max(13, Math.round((isGoldFloat?17:15)*s)) + "px 'Segoe UI', system-ui, sans-serif";
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(f.text, w2sX(f.wx), w2sY(f.wy) - age * 46);
+    // shadow for readability
+    ctx.strokeStyle='rgba(0,0,0,.6)'; ctx.lineWidth=3; ctx.strokeText(f.text, w2sX(f.wx), w2sY(f.wy) - age * 52);
+    ctx.fillText(f.text, w2sX(f.wx), w2sY(f.wy) - age * 52);
     ctx.globalAlpha = 1;
   }
 }
@@ -878,32 +1304,48 @@ function updateHover(){
       cursor = 'pointer';
       const bx = Math.floor(s2wX(mouse.x)/P), by = Math.floor(s2wY(mouse.y)/P);
       const b = peek(bx, by);
+      const isGold = !!(b && b.golden);
       const st = !b ? 'untouched' : ['untouched','in progress','cleared','locked'][b.s];
-      info = 'Board (' + bx + ', ' + by + ') · ' + st + ' — click to jump in';
+      if(isGold && b.s!==2){
+        info = 'Board (' + bx + ', ' + by + ') · <span class="goldTxt">★ GOLDEN · '+b.m+' mines → '+Math.round(goldenReward(b.m))+' coins</span> — click to jump in';
+      } else if(b && b.s===2 && isGold){
+        info = 'Board (' + bx + ', ' + by + ') · <span class="goldTxt">★ golden cleared</span> — '+b.m+' mines';
+      } else {
+        info = 'Board (' + bx + ', ' + by + ') · ' + st + ' — click to jump in';
+      }
     } else {
       const c = pickCell(mouse.x, mouse.y);
       if (c){
         const a = splitCell(c.gx, c.gy);
         const b = peek(a.bx, a.by);
+        const isGold = !!(b && b.golden);
         const i = a.ly*9 + a.lx;
         const st = b ? b.cells[i] : 0;
         let ok = false;
-        if (b && b.s === 3) ok = true;                       // clickable -> opens lock panel
+        if (b && b.s === 3) ok = true;
         else if (b && b.s === 2) ok = false;
-        else if (st === 1) ok = true;                        // chord
+        else if (st === 1) ok = true;
         else if (st === 0 && canReveal(c.gx, c.gy, b)) ok = true;
         else if ((st === 0 || st === 3 || st === 4) && canFlag(c.gx, c.gy)) ok = true;
         else if (st === 3 || st === 4) ok = true;
+        else if (isGold && b.s===0) ok = true; // allow click to open gold panel
         hoverCell = { gx: c.gx, gy: c.gy, ok };
         if (ok) cursor = 'pointer';
 
         if (b && b.s === 3){
-          info = 'Board (' + a.bx + ', ' + a.by + ') · <b style="color:#ff9c9c">locked</b> · ' + b.m + ' mines — click for options';
+          if(isGold){
+            info = 'Board (' + a.bx + ', ' + a.by + ') · <span class="goldTxt">★ GOLDEN LOCKED</span> · ' + b.m + ' mines → '+Math.round(goldenReward(b.m))+' coins — click for options';
+          } else {
+            info = 'Board (' + a.bx + ', ' + a.by + ') · <b style="color:#ff9c9c">locked</b> · ' + b.m + ' mines — click for options';
+          }
         } else if (b && b.s > 0){
           let flags = 0;
           for (let k=0;k<81;k++) if (b.cells[k]===2 || b.cells[k]===5) flags++;
-          const name = b.s === 2 ? 'cleared' : 'in progress';
-          info = 'Board (' + a.bx + ', ' + a.by + ') · ' + b.m + ' mines · ' + flags + ' flagged · ' + name;
+          const name = b.s === 2 ? (isGold ? '<span class="goldTxt">★ golden cleared</span>' : 'cleared') : (isGold? '<span class="goldTxt">★ golden in progress</span>' : 'in progress');
+          const rewardTxt = isGold ? ' · <span class="goldTxt">'+Math.round(goldenReward(b.m))+' coins</span>' : '';
+          info = 'Board (' + a.bx + ', ' + a.by + ') · ' + b.m + ' mines · ' + flags + ' flagged · ' + name + rewardTxt;
+        } else if (isGold){
+          info = 'Board (' + a.bx + ', ' + a.by + ') · <span class="goldTxt">★ GOLDEN · '+b.m+' mines → '+Math.round(goldenReward(b.m))+' coins</span> · ≤3 from frontier — click to start!';
         } else if (st === 0 && !started){
           info = 'Board (' + a.bx + ', ' + a.by + ') · first click is always safe';
         } else {
@@ -920,6 +1362,21 @@ function updateHover(){
 function updateHUD(){
   $('coinVal').textContent = coins;
   $('doneVal').textContent = boardsDone;
+  const toGold = 10 - (boardsDone % 10);
+  const display = toGold===10 ? 10 : toGold;
+  // if we have active goldens, show count else show toGold
+  const active = countGoldenActive();
+  if(active>0){
+    $('goldenProg').innerHTML = '<b>'+active+'★</b>';
+    $('goldenCard').title = active+' golden board'+(active>1?'s':'')+' active — '+display+' boards to next gold';
+    // add small hint inside?
+    if(!$('goldenCard').querySelector('.nextHint')){
+      // keep simple
+    }
+  } else {
+    $('goldenProg').textContent = display;
+    $('goldenCard').title = display+' boards until next golden (20-30 mines, 50-60 coins) — distance ≤3 from explored';
+  }
 }
 function flashCoins(){
   const el = $('coinCard');
@@ -933,16 +1390,42 @@ function toast(msg, cls){
   t.textContent = msg;
   box.appendChild(t);
   requestAnimationFrame(() => t.classList.add('show'));
-  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 350); }, 2800);
+  setTimeout(() => { t.classList.remove('show'); setTimeout(() => t.remove(), 350); }, 3200);
 }
 
-/* lock panel */
+/* lock / gold panels */
 let lockSig = '';
 function openLockPanel(b){
   if (b.s !== 3) return;
   lockBoard = b; lockSig = '';
   refreshLockPanel();
   $('lockOverlay').classList.remove('hidden');
+  // if golden, style header gold?
+  const isGold = !!b.golden;
+  const title = $('lockTitle');
+  if(isGold){
+    title.className='gold';
+    title.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg><span>Golden board locked</span>';
+    $('lockDesc').innerHTML='This <b style="color:#ffd700">GOLDEN board</b> detonated. It holds <b style="color:#ffd700">'+Math.round(goldenReward(b.m))+' coins</b> if cleared. Unlock via surroundings or pay.';
+    $('lkRewardRow').style.display='flex';
+    $('lkReward').textContent = Math.round(goldenReward(b.m))+' coins ('+b.m+' mines)';
+    $('lkBarWrap').className='bar gold';
+    $('payBtn').className='btn gold big';
+  } else {
+    title.className='red';
+    title.innerHTML='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg><span>Board locked</span>';
+    $('lockDesc').textContent='A mine detonated on this board. Clear all 8 surrounding boards to unlock it — or pay to break in early.';
+    $('lkRewardRow').style.display='none';
+    $('lkBarWrap').className='bar';
+    $('payBtn').className='btn primary big';
+  }
+}
+function openGoldPanel(b){
+  if(!b || !b.golden || b.s!==0) return;
+  goldBoard = b;
+  $('gdMines').textContent = b.m;
+  $('gdReward').textContent = Math.round(goldenReward(b.m))+' coins';
+  $('goldOverlay').classList.remove('hidden');
 }
 function refreshLockPanel(){
   if (!lockBoard) return;
@@ -955,21 +1438,29 @@ function refreshLockPanel(){
   $('lkMines').textContent = b.m;
   $('lkProg').textContent = k + ' / 8';
   $('lkBar').style.width = (k/8*100) + '%';
-  $('payBtn').innerHTML = 'Unlock — ' + cost + ' coins &nbsp;<span style="opacity:.75">(you have ' + coins + ')</span>';
+  if(b.golden){
+    $('payBtn').innerHTML = 'Unlock golden — ' + cost + ' coins &nbsp;<span style="opacity:.75">(you have ' + coins + ')</span>';
+  } else {
+    $('payBtn').innerHTML = 'Unlock — ' + cost + ' coins &nbsp;<span style="opacity:.75">(you have ' + coins + ')</span>';
+  }
   $('payBtn').disabled = coins < cost;
   $('lkNote').textContent = coins < cost
     ? 'Not enough coins — clear surrounding boards to unlock it for free.'
-    : 'Flag review on unlock: correct flags marked, wrong flags crossed out, triggered mine auto-flagged.';
+    : (b.golden ? 'Golden treasure awaits — '+Math.round(goldenReward(b.m))+' coins on clear!' : 'Flag review on unlock: correct flags marked, wrong flags crossed out, triggered mine auto-flagged.');
 }
 function closeOverlays(){
   lockBoard = null; lockSig = '';
+  goldBoard = null;
   $('lockOverlay').classList.add('hidden');
   $('confirmOverlay').classList.add('hidden');
+  $('goldOverlay').classList.add('hidden');
 }
 function bindUI(){
   $('lockClose').onclick = closeOverlays;
+  $('goldClose').onclick = closeOverlays;
   $('lockOverlay').addEventListener('mousedown', e => { if (e.target === $('lockOverlay')) closeOverlays(); });
   $('confirmOverlay').addEventListener('mousedown', e => { if (e.target === $('confirmOverlay')) closeOverlays(); });
+  $('goldOverlay').addEventListener('mousedown', e => { if (e.target === $('goldOverlay')) closeOverlays(); });
   $('payBtn').onclick = () => {
     if (!lockBoard) return;
     const cost = unlockCost(lockBoard);
@@ -978,8 +1469,18 @@ function bindUI(){
     coins -= cost;
     closeOverlays();
     unlockBoard(b);
-    toast('Unlocked for ' + cost + ' coins','gold');
+    toast(b.golden ? 'Golden board unlocked for '+cost+' coins — claim the treasure!' : 'Unlocked for ' + cost + ' coins','gold');
     updateHUD(); saveSoon();
+  };
+  $('goldJumpBtn').onclick = ()=>{
+    if(!goldBoard) return;
+    const b = goldBoard;
+    closeOverlays();
+    // center camera on golden board
+    tgt.x = b.bx*P + 9*C/2; tgt.y = b.by*P + 9*C/2; tgt.s = 1;
+    cam.x = tgt.x; cam.y = tgt.y;
+    zoomAnchor=null;
+    toast('Golden board ('+b.bx+', '+b.by+') centered — go get '+Math.round(goldenReward(b.m))+' coins!','gold');
   };
   $('newGameBtn').onclick = () => $('confirmOverlay').classList.remove('hidden');
   $('cancelBtn').onclick = () => $('confirmOverlay').classList.add('hidden');
@@ -1004,7 +1505,6 @@ function loop(now){
   requestAnimationFrame(loop);
   const dt = Math.min(0.05, (now - last) / 1000); last = now;
 
-  // keyboard pan
   let kx = 0, ky = 0;
   if (keys.has('KeyW') || keys.has('ArrowUp')) ky -= 1;
   if (keys.has('KeyS') || keys.has('ArrowDown')) ky += 1;
@@ -1016,7 +1516,6 @@ function loop(now){
     tgt.x += kx/l * sp; tgt.y += ky/l * sp;
   }
 
-  // smooth zoom (anchored to cursor)
   const fz = 1 - Math.pow(0.0015, dt);
   if (cam.s !== tgt.s){
     cam.s += (tgt.s - cam.s) * fz;
@@ -1028,7 +1527,6 @@ function loop(now){
       if (cam.s === tgt.s) zoomAnchor = null;
     }
   }
-  // smooth pan
   if (!panning && !(kx || ky)){
     const fp = 1 - Math.pow(0.001, dt);
     cam.x += (tgt.x - cam.x) * fp;
@@ -1040,7 +1538,6 @@ function loop(now){
 
   shake *= Math.pow(0.03, dt); if (shake < 0.01) shake = 0;
 
-  // auto-close lock panel if its board got unlocked elsewhere
   if (lockBoard && lockBoard.s !== 3) closeOverlays();
   else if (lockBoard) refreshLockPanel();
 
@@ -1057,6 +1554,18 @@ function boot(){
   if (!had) seed = (Math.random() * 0x7fffffff) >>> 0;
   if (started) $('startHint').classList.add('hidden');
   resize(); bindInput(); bindUI(); updateHUD();
+  // retro-spawn missing goldens after load
+  if(had){
+    const expected = Math.floor(boardsDone/10);
+    const total = countGoldenTotal();
+    const missing = expected - total;
+    if(missing>0){
+      for(let i=0;i<missing;i++){
+        // stagger
+        setTimeout(()=> spawnGoldenBoard(), 800 + i*700);
+      }
+    }
+  }
   requestAnimationFrame(loop);
 }
 boot();
