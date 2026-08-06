@@ -1,2 +1,2 @@
 # aicode
-Multiple web proyects done with AI
+Multiple web projects done with AI
