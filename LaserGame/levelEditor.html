@@ -1,0 +1,1764 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>LUMEN — Editor de Niveles</title>
+<style>
+  :root{
+    --bg:#080a10; --panel:#10141c; --panel-2:#151a24;
+    --line:rgba(94,234,212,0.10); --line-strong:rgba(94,234,212,0.28);
+    --teal:#5eead4; --teal-dim:#2f6f66; --ink:#e7ecf3; --ink-dim:#8a93a6;
+    --red:#ff3b57; --blue:#38bdf8; --green:#4ade80; --yellow:#fbbf24;
+    --magenta:#e879f9; --cyan:#22d3ee; --white:#f5f7fb;
+    --mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html,body{ margin:0; padding:0; height:100%; background:var(--bg); color:var(--ink); font-family:var(--sans); overscroll-behavior:none; }
+  body{ background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px); background-size:34px 34px; display:flex; justify-content:center; }
+  .app{ width:100%; max-width:780px; min-height:100dvh; display:flex; flex-direction:column; padding:16px 14px calc(16px + env(safe-area-inset-bottom)); gap:12px; }
+  header{ text-align:center; }
+  .eyebrow{ font-family:var(--mono); font-size:11px; letter-spacing:3px; color:var(--teal); text-transform:uppercase; }
+  h1{ margin:4px 0 2px; font-size:23px; font-weight:700; }
+  .sub{ margin:0; font-size:12.5px; color:var(--ink-dim); }
+
+  .tabs{ display:flex; gap:8px; background:var(--panel); border:1px solid var(--line-strong); border-radius:12px; padding:5px; }
+  .tab{ flex:1; text-align:center; padding:10px; border-radius:8px; font-family:var(--mono); font-size:12px; letter-spacing:1px; text-transform:uppercase; cursor:pointer; color:var(--ink-dim); }
+  .tab.active{ background:linear-gradient(180deg,#1c3733,#12241f); color:var(--teal); border:1px solid var(--teal-dim); }
+
+  .panel{ background:var(--panel); border:1px solid var(--line-strong); border-radius:14px; padding:12px; }
+  .panel h2{ margin:0 0 10px; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--ink-dim); font-family:var(--mono); font-weight:600; }
+
+  .board-wrap{ position:relative; background:var(--panel); border:1px solid var(--line-strong); border-radius:14px; padding:10px; }
+  canvas{ display:block; width:100%; height:auto; border-radius:8px; touch-action:none; background:#0c0f16; }
+  .win-banner{ position:absolute; inset:10px; display:flex; align-items:center; justify-content:center; flex-direction:column; gap:4px; background:rgba(6,10,14,0.72); border-radius:8px; opacity:0; pointer-events:none; transition:opacity .35s ease; }
+  .win-banner.show{ opacity:1; }
+  .win-banner .big{ font-family:var(--mono); font-size:19px; letter-spacing:3px; color:var(--green); text-shadow:0 0 18px rgba(74,222,128,0.7); }
+  .win-banner .small{ font-size:12px; color:var(--ink-dim); }
+
+  .row{ display:flex; gap:8px; flex-wrap:wrap; }
+  .row + .row{ margin-top:8px; }
+
+  button, select, input[type=number]{ font-family:var(--mono); }
+  button{ font-size:11.5px; letter-spacing:.3px; text-transform:uppercase; padding:9px 8px; border-radius:9px; border:1px solid var(--line-strong); background:var(--panel-2); color:var(--ink-dim); cursor:pointer; min-height:38px; }
+  button.primary{ background:linear-gradient(180deg,#1c3733,#12241f); color:var(--teal); border-color:var(--teal-dim); }
+  button.on{ background:linear-gradient(180deg,#1c3733,#12241f); color:var(--teal); border-color:var(--teal); }
+  button:active{ transform:translateY(1px); }
+  button:disabled{ opacity:.35; }
+
+  .tools{ display:grid; grid-template-columns:repeat(4,1fr); gap:6px; }
+  .tools button{ padding:8px 4px; font-size:9.5px; }
+  .cable-tools{ display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+  .cable-swatch{ display:flex; align-items:center; justify-content:center; gap:6px; }
+  .cable-dot{ width:10px; height:10px; border-radius:50%; display:inline-block; }
+
+  select, input[type=number], input[type=text]{ background:#0d1119; color:var(--ink); border:1px solid var(--line-strong); border-radius:7px; padding:8px; font-size:12.5px; }
+  label{ font-size:10.5px; color:var(--ink-dim); font-family:var(--mono); display:flex; flex-direction:column; gap:4px; }
+  .inline-check{ flex-direction:row; align-items:center; gap:6px; font-size:10.5px; }
+
+  .inspector{ margin-top:10px; padding:10px; border-radius:10px; background:var(--panel-2); border:1px dashed var(--line-strong); }
+  .inspector .row{ align-items:flex-end; }
+  .inspector .title{ font-family:var(--mono); font-size:11px; color:var(--teal); letter-spacing:1px; text-transform:uppercase; margin-bottom:8px; }
+  .checkgrid{ display:flex; gap:10px; flex-wrap:wrap; }
+
+  .plist{ display:flex; flex-direction:column; gap:8px; }
+  .prow{ display:flex; gap:6px; align-items:center; background:var(--panel-2); padding:8px; border-radius:9px; border:1px solid var(--line); flex-wrap:wrap; }
+  .prow select{ flex:1; min-width:110px; }
+  .prow input[type=number]{ width:56px; }
+  .prow button{ padding:8px 10px; }
+
+  textarea{ width:100%; min-height:130px; background:#0d1119; color:var(--ink); border:1px solid var(--line-strong); border-radius:9px; padding:10px; font-family:var(--mono); font-size:11px; resize:vertical; }
+
+  .status-bar{ display:flex; align-items:center; justify-content:space-between; gap:10px; background:var(--panel); border:1px solid var(--line-strong); border-radius:12px; padding:10px 14px; font-family:var(--mono); font-size:12.5px; }
+  .status-bar .dot{ width:8px; height:8px; border-radius:50%; background:var(--ink-dim); display:inline-block; margin-right:8px; }
+  .status-bar.playing .dot{ background:var(--teal); box-shadow:0 0 10px var(--teal); }
+  .status-bar.won .dot{ background:var(--green); box-shadow:0 0 12px var(--green); }
+  .status-text{ color:var(--ink-dim); }
+  .status-bar.playing .status-text{ color:var(--ink); }
+
+  .palette{ background:var(--panel); border:1px solid var(--line-strong); border-radius:14px; padding:12px; }
+  .palette-items{ display:flex; gap:10px; flex-wrap:wrap; }
+  .item{ flex:1 1 66px; display:flex; flex-direction:column; align-items:center; gap:6px; background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:10px 6px 8px; cursor:pointer; min-height:70px; justify-content:center; }
+  .item.selected{ border-color:var(--teal); box-shadow:0 0 0 1px var(--teal), 0 0 16px rgba(94,234,212,0.35) inset; }
+  .item.empty{ opacity:.35; pointer-events:none; }
+  .item svg{ width:24px; height:24px; }
+  .item .count{ font-family:var(--mono); font-size:11px; color:var(--ink-dim); }
+  .item.selected .count{ color:var(--teal); }
+  .item .name{ font-size:9px; letter-spacing:.4px; color:var(--ink-dim); text-transform:uppercase; font-family:var(--mono); }
+
+  .hint{ font-size:11.5px; color:var(--ink-dim); line-height:1.5; }
+  .msg{ font-size:11.5px; padding:8px 10px; border-radius:8px; display:none; }
+  .msg.show{ display:block; }
+  .msg.err{ background:rgba(255,59,87,0.12); color:#ff8fa0; border:1px solid rgba(255,59,87,0.35); }
+  .msg.ok{ background:rgba(74,222,128,0.10); color:#8ff0ac; border:1px solid rgba(74,222,128,0.3); }
+  footer{ text-align:center; font-family:var(--mono); font-size:10px; color:#3a4252; letter-spacing:1px; padding-top:2px; }
+
+  /* Level List Styles */
+  .level-list{ display:flex; flex-direction:column; gap:6px; max-height:300px; overflow-y:auto; }
+  .level-item{ display:flex; align-items:center; gap:8px; background:var(--panel-2); border:1px solid var(--line); border-radius:9px; padding:8px 10px; }
+  .level-item.active{ border-color:var(--teal); background:linear-gradient(180deg,#1c3733,#12241f); }
+  .level-item .level-name{ flex:1; font-family:var(--mono); font-size:12px; color:var(--ink); cursor:pointer; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .level-item .level-name:hover{ color:var(--teal); }
+  .level-item.active .level-name{ color:var(--teal); }
+  .level-item .level-info{ font-size:10px; color:var(--ink-dim); font-family:var(--mono); white-space:nowrap; }
+  .level-item .level-btns{ display:flex; gap:4px; flex-shrink:0; }
+  .level-item .level-btns button{ padding:4px 6px; min-height:unset; font-size:10px; }
+  .level-name-input{ background:#0d1119; color:var(--ink); border:1px solid var(--teal); border-radius:5px; padding:4px 6px; font-family:var(--mono); font-size:12px; flex:1; }
+  .level-empty{ font-size:12px; color:var(--ink-dim); text-align:center; padding:20px; }
+  .level-status{ font-size:10px; padding:6px 10px; border-radius:6px; margin-bottom:8px; font-family:var(--mono); }
+  .level-status.unsaved{ background:rgba(251,191,36,0.12); color:#fbbf24; border:1px solid rgba(251,191,36,0.3); }
+  .level-status.saved{ background:rgba(74,222,128,0.10); color:#8ff0ac; border:1px solid rgba(74,222,128,0.3); }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <header>
+    <div class="eyebrow">LUMEN — Prototype</div>
+    <h1>Editor de Niveles</h1>
+    <p class="sub">Todos los objetos del diseño + circuitos de dos capas. Exporta/importa en JSON.</p>
+  </header>
+
+  <div class="tabs">
+    <div class="tab active" id="tabEditor">✏ Editor</div>
+    <div class="tab" id="tabPlay">▶ Probar nivel</div>
+  </div>
+
+  <!-- ===================== EDITOR VIEW ===================== -->
+  <div id="editorView">
+
+    <div class="panel">
+      <h2>Tamaño del tablero</h2>
+      <div class="row">
+        <label>Columnas<input type="number" id="colsInput" min="2" max="32" value="8"></label>
+        <label>Filas<input type="number" id="rowsInput" min="2" max="32" value="6"></label>
+        <button class="primary" id="applySizeBtn" style="align-self:flex-end;">Aplicar</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>Capa activa</h2>
+      <div class="row">
+        <button class="on" id="layerToggleBtn" style="flex:1;">Capa: Objetos</button>
+      </div>
+
+      <div id="objectTools" class="tools" style="margin-top:10px;">
+        <button class="on" data-tool="wall">Pared</button>
+        <button data-tool="mirror">Espejo</button>
+        <button data-tool="tunnel">Túnel</button>
+        <button data-tool="source">Emisor</button>
+        <button data-tool="receiver">Receptor</button>
+        <button data-tool="combiner">Combin.</button>
+        <button data-tool="filter">Filtro</button>
+        <button data-tool="complexFilter">Filtro+</button>
+        <button data-tool="splitter">Divisor</button>
+        <button data-tool="sensor">Sensor</button>
+        <button data-tool="hingeDoor">Puerta</button>
+        <button data-tool="liftableWall">Muro↕</button>
+        <button data-tool="liftableTunnel">Túnel↕</button>
+        <button data-tool="erase">Borrar</button>
+      </div>
+
+      <div id="circuitTools" class="cable-tools" style="display:none; margin-top:10px;">
+        <button class="cable-swatch on" data-cable="orange"><span class="cable-dot" style="background:#fb923c"></span>Naranja</button>
+        <button class="cable-swatch" data-cable="purple"><span class="cable-dot" style="background:#a78bfa"></span>Púrpura</button>
+        <button class="cable-swatch" data-cable="brown"><span class="cable-dot" style="background:#b08463"></span>Marrón</button>
+        <button class="cable-swatch" data-cable="pink"><span class="cable-dot" style="background:#f472b6"></span>Rosa</button>
+        <button class="cable-swatch" data-cable="black"><span class="cable-dot" style="background:#9aa5b1"></span>Negro</button>
+        <button class="cable-swatch" data-cable="erase">✕ Borrador</button>
+      </div>
+      <div class="row" id="clearCircuitsRow" style="display:none; margin-top:8px;">
+        <button id="clearCircuitsBtn" style="flex:1;">Vaciar todos los circuitos</button>
+      </div>
+
+      <p class="hint" style="margin:10px 0 0;">
+        <b id="toolHelpLabel">Toca una casilla vacía para colocar el objeto activo. Toca un objeto ya puesto para editarlo.</b>
+      </p>
+    </div>
+
+    <div class="board-wrap"><canvas id="board"></canvas></div>
+
+    <div class="panel" id="inspectorPanel" style="display:none;">
+      <h2>Objeto seleccionado</h2>
+      <div class="inspector" id="inspector"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Objetos del jugador (lista limitada)</h2>
+      <div class="plist" id="plist"></div>
+      <div class="row" style="margin-top:10px;"><button id="addPaletteRow">+ Añadir objeto</button></div>
+      <p class="hint" style="margin-top:8px;">Por simplicidad, la lista del jugador solo admite Espejo, Pared y Túnel — el resto de objetos son siempre fijos, colocados por ti en el tablero.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Lista de Niveles <span id="levelListCount" style="color:var(--ink-dim);font-weight:400;"></span></h2>
+      <div class="level-status unsaved" id="levelStatus">⚠ Nivel actual no guardado</div>
+      <div class="level-list" id="levelList"></div>
+      <div class="row" style="margin-top:10px;">
+        <button id="saveLevelBtn" class="primary" style="flex:1;">💾 Guardar nivel actual</button>
+      </div>
+      <div class="row">
+        <button id="exportAllLevelsBtn" style="flex:1;">📦 Exportar lista</button>
+        <button id="importLevelsBtn" style="flex:1;">📥 Importar lista</button>
+        <button id="clearAllLevelsBtn" style="flex:0.5;">🗑</button>
+      </div>
+      <input type="file" id="importLevelsFile" accept="application/json,.json" style="display:none;">
+      <p class="hint" style="margin-top:8px;">Los niveles se guardan en el navegador. Usa ↑↓ para reordenar, ✏ para renombrar, ⎘ para duplicar.</p>
+    </div>
+
+    <div class="panel">
+      <h2>Nivel Actual — Importar / Exportar</h2>
+      <div class="row">
+        <button id="newLevelBtn">Nuevo nivel</button>
+        <button id="loadExampleBtn">Cargar ejemplo</button>
+        <button id="downloadBtn" class="primary">Descargar .json</button>
+        <button id="showJsonBtn">Mostrar JSON</button>
+      </div>
+      <div class="row"><label style="flex:1;">Cargar archivo .json<input type="file" id="fileInput" accept="application/json,.json"></label></div>
+      <textarea id="jsonArea" placeholder="Pega aquí un JSON de nivel para cargarlo, o pulsa 'Mostrar JSON'..."></textarea>
+      <div class="row" style="margin-top:8px;"><button id="loadPastedBtn" class="primary">Cargar JSON pegado</button></div>
+      <div class="msg" id="msgBox"></div>
+    </div>
+  </div>
+
+  <!-- ===================== PLAY VIEW ===================== -->
+  <div id="playView" style="display:none;">
+    <div class="status-bar" id="statusBar">
+      <span><span class="dot"></span><span class="status-text" id="statusText">Coloca tus objetos y pulsa PLAY</span></span>
+      <span id="statusRight" style="color:var(--ink-dim)"></span>
+    </div>
+    <div class="board-wrap">
+      <canvas id="boardPlay"></canvas>
+      <div class="win-banner" id="winBanner">
+        <div class="big">NIVEL COMPLETADO</div>
+        <div class="small">Todos los receptores activados durante 1s seguido</div>
+      </div>
+    </div>
+    <div class="row">
+      <button class="primary" id="playBtn" style="flex:1;">▶ Play</button>
+      <button id="resetPlayBtn" style="flex:1;">↺ Reset</button>
+    </div>
+    <div class="palette">
+      <h2 style="margin:0 0 10px; font-size:11px; letter-spacing:2px; text-transform:uppercase; color:var(--ink-dim); font-family:var(--mono);">Objetos disponibles</h2>
+      <div class="palette-items" id="paletteItems"></div>
+    </div>
+    <p class="hint">Toca un objeto de la lista y luego una casilla para colocarlo. Un toque corto sobre un espejo/túnel ya puesto sin bloqueo de rotación lo rota. Mantén pulsado un objeto puesto para devolverlo a la lista.</p>
+    <p class="hint" style="margin-top:8px;"><b>Circuitos:</b> Las puertas y muros necesitan señal continua durante 0.5s para cambiar de estado. Sin señal durante 0.2s vuelven a su estado inicial.</p>
+  </div>
+
+  <footer>EDITOR + CIRCUITOS + MODO DE PRUEBA · SIN CONEXIÓN · ARCHIVO ÚNICO</footer>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ============================================================
+  // CONSTANTS & DATA TABLES
+  // ============================================================
+  const COLORS = { red:'#ff3b57', blue:'#38bdf8', green:'#4ade80', yellow:'#fbbf24', magenta:'#e879f9', cyan:'#22d3ee', white:'#f5f7fb' };
+  const COLOR_KEYS = Object.keys(COLORS);
+  const DIRS = { right:{x:1,y:0}, left:{x:-1,y:0}, up:{x:0,y:-1}, down:{x:0,y:1} };
+  const DIR_OPTIONS = [['up','Arriba'],['right','Derecha'],['down','Abajo'],['left','Izquierda']];
+  const CW = ['up','right','down','left'];
+  const PASS = { left:'right', right:'left', up:'down', down:'up' };
+  const CABLE_COLORS = ['orange','purple','brown','pink','black'];
+  const CABLE_HEX = { orange:'#fb923c', purple:'#a78bfa', brown:'#b08463', pink:'#f472b6', black:'#9aa5b1' };
+  const PRIMARY_SETS = { red:['R'], green:['G'], blue:['B'], yellow:['R','G'], magenta:['R','B'], cyan:['G','B'], white:['R','G','B'] };
+  const WIN_HOLD_MS = 1000;
+  const LONG_PRESS_MS = 450;
+  const PROPAGATE_MAX_ITERS = 60;
+  const EVALUATE_MAX_OUTER = 10;
+  const SIGNAL_ACTIVATE_MS = 500;   // 0.5s continuous signal to change state
+  const SIGNAL_DEACTIVATE_MS = 200; // 0.2s without signal to revert state
+
+  function primSet(color){ return new Set(PRIMARY_SETS[color]||[]); }
+  function colorFromPrimSet(set){
+    const r=set.has('R'), g=set.has('G'), b=set.has('B');
+    if(r&&g&&b) return 'white'; if(r&&g) return 'yellow'; if(r&&b) return 'magenta'; if(g&&b) return 'cyan';
+    if(r) return 'red'; if(g) return 'green'; if(b) return 'blue'; return null;
+  }
+  function mixColors(c1,c2){ return colorFromPrimSet(new Set([...primSet(c1), ...primSet(c2)])); }
+  function sidesExcept(side){ return CW.filter(s=>s!==side); }
+  function clockwiseFrom(side){ const i=CW.indexOf(side); return [CW[(i+1)%4], CW[(i+2)%4], CW[(i+3)%4]]; }
+  function permsOfSize(letters,k){
+    if(k<=0) return [[]];
+    const res=[];
+    letters.forEach((v,i)=>{ const rest=letters.slice(0,i).concat(letters.slice(i+1)); permsOfSize(rest,k-1).forEach(p=>res.push([v,...p])); });
+    return res;
+  }
+  function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+
+  const TYPE_LABEL = { wall:'Pared', mirror:'Espejo', tunnel:'Túnel', source:'Emisor', receiver:'Receptor',
+    combiner:'Combinador', filter:'Filtro', complexFilter:'Filtro complejo', splitter:'Divisor',
+    sensor:'Sensor', hingeDoor:'Puerta con bisagra', liftableWall:'Muro elevable', liftableTunnel:'Túnel elevable' };
+
+  function defaultObject(type){
+    switch(type){
+      case 'wall': return {};
+      case 'mirror': return {mirrorType:'slash'};
+      case 'tunnel': return {orientation:'h'};
+      case 'source': return {color:'red', dir:'right'};
+      case 'receiver': return {color:'red', locks:[]};
+      case 'combiner': return {wallSide:'up', outputSide:'down'};
+      case 'filter': return {direction:'up', outputOrder:'RGB'};
+      case 'complexFilter': return {direction:'up', inputColor:'white', darkSide:'', outputOrder:'RGB'};
+      case 'splitter': return {direction:'up', blocked:[]};
+      case 'sensor': return {color:'red', locks:[]};
+      case 'hingeDoor': return {direction:'up', initialState:0};
+      case 'liftableWall': return {initialState:'lowered'};
+      case 'liftableTunnel': return {orientation:'h', initialState:'lowered'};
+      default: return {};
+    }
+  }
+
+  function defaultLevel(){ return { cols:8, rows:6, fixed:[], palette:[], cables:[] }; }
+
+  function exampleLevel(){
+    return {
+      cols:8, rows:6,
+      fixed:[
+        { col:0, row:1, type:'source', color:'red', dir:'right' },
+        { col:0, row:4, type:'source', color:'blue', dir:'right' },
+        { col:7, row:3, type:'receiver', color:'red', locks:[] },
+        { col:7, row:2, type:'receiver', color:'blue', locks:[] },
+        { col:5, row:1, type:'wall' },
+        { col:5, row:4, type:'wall' },
+        { col:1, row:0, type:'wall' },
+        { col:1, row:5, type:'wall' },
+      ],
+      palette:[
+        { type:'mirror', mirrorType:'slash', count:2, blockRotation:true },
+        { type:'mirror', mirrorType:'backslash', count:2, blockRotation:true },
+      ],
+      cables:[]
+    };
+  }
+
+  let level = exampleLevel();
+  let mode = 'editor';
+
+  // ============================================================
+  // LEVEL LIST MANAGEMENT
+  // ============================================================
+  const STORAGE_KEY = 'lumen_level_list';
+  let levelList = [];
+  let currentLevelIndex = -1; // -1 means editing a new/unsaved level
+
+  function loadLevelListFromStorage(){
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if(stored){
+        const parsed = JSON.parse(stored);
+        if(Array.isArray(parsed)) levelList = parsed;
+      }
+    } catch(e){ console.warn('Failed to load level list:', e); }
+  }
+
+  function saveLevelListToStorage(){
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(levelList));
+    } catch(e){ console.warn('Failed to save level list:', e); }
+  }
+
+  function generateLevelId(){
+    return 'lvl_' + Date.now() + '_' + Math.random().toString(36).substr(2,9);
+  }
+
+  function saveLevelToList(name){
+    const entry = {
+      id: generateLevelId(),
+      name: name || ('Nivel ' + (levelList.length + 1)),
+      data: JSON.parse(JSON.stringify(level)),
+      savedAt: Date.now()
+    };
+    levelList.push(entry);
+    currentLevelIndex = levelList.length - 1;
+    saveLevelListToStorage();
+    renderLevelList();
+  }
+
+  function updateLevelInList(index){
+    if(index < 0 || index >= levelList.length) return;
+    levelList[index].data = JSON.parse(JSON.stringify(level));
+    levelList[index].savedAt = Date.now();
+    saveLevelListToStorage();
+    renderLevelList();
+  }
+
+  function deleteLevelFromList(index){
+    if(index < 0 || index >= levelList.length) return;
+    levelList.splice(index, 1);
+    if(currentLevelIndex === index) currentLevelIndex = -1;
+    else if(currentLevelIndex > index) currentLevelIndex--;
+    saveLevelListToStorage();
+    renderLevelList();
+  }
+
+  function loadLevelFromList(index){
+    if(index < 0 || index >= levelList.length) return;
+    const entry = levelList[index];
+    currentLevelIndex = index;
+    setLevel(JSON.parse(JSON.stringify(entry.data)), true);
+    renderLevelList();
+    showMsg('Nivel "' + entry.name + '" cargado.', true);
+  }
+
+  function renameLevelInList(index, newName){
+    if(index < 0 || index >= levelList.length) return;
+    levelList[index].name = newName || levelList[index].name;
+    saveLevelListToStorage();
+    renderLevelList();
+  }
+
+  function moveLevelInList(index, direction){
+    const newIndex = index + direction;
+    if(newIndex < 0 || newIndex >= levelList.length) return;
+    const temp = levelList[index];
+    levelList[index] = levelList[newIndex];
+    levelList[newIndex] = temp;
+    if(currentLevelIndex === index) currentLevelIndex = newIndex;
+    else if(currentLevelIndex === newIndex) currentLevelIndex = index;
+    saveLevelListToStorage();
+    renderLevelList();
+  }
+
+  function duplicateLevelInList(index){
+    if(index < 0 || index >= levelList.length) return;
+    const original = levelList[index];
+    const copy = {
+      id: generateLevelId(),
+      name: original.name + ' (copia)',
+      data: JSON.parse(JSON.stringify(original.data)),
+      savedAt: Date.now()
+    };
+    levelList.splice(index + 1, 0, copy);
+    saveLevelListToStorage();
+    renderLevelList();
+    showMsg('Nivel duplicado.', true);
+  }
+
+  function clearAllLevels(){
+    if(levelList.length === 0) return;
+    if(!confirm('¿Eliminar TODOS los ' + levelList.length + ' niveles guardados?\n\nEsta acción no se puede deshacer.')) return;
+    levelList = [];
+    currentLevelIndex = -1;
+    saveLevelListToStorage();
+    renderLevelList();
+    showMsg('Lista de niveles vaciada.', true);
+  }
+
+  function renderLevelList(){
+    const container = document.getElementById('levelList');
+    const countEl = document.getElementById('levelListCount');
+    const statusEl = document.getElementById('levelStatus');
+    if(!container) return;
+    
+    if(countEl) countEl.textContent = levelList.length > 0 ? '(' + levelList.length + ')' : '';
+    
+    if(statusEl){
+      if(currentLevelIndex >= 0 && levelList[currentLevelIndex]){
+        statusEl.className = 'level-status saved';
+        statusEl.textContent = '✓ Editando: ' + levelList[currentLevelIndex].name;
+      } else {
+        statusEl.className = 'level-status unsaved';
+        statusEl.textContent = '⚠ Nivel actual no guardado';
+      }
+    }
+    
+    if(levelList.length === 0){
+      container.innerHTML = '<div class="level-empty">No hay niveles guardados.<br>Pulsa "Guardar nivel actual" para añadir uno.</div>';
+      return;
+    }
+    
+    container.innerHTML = '';
+    levelList.forEach((entry, idx) => {
+      const div = document.createElement('div');
+      div.className = 'level-item' + (idx === currentLevelIndex ? ' active' : '');
+      
+      const info = entry.data.cols + '×' + entry.data.rows;
+      const objCount = (entry.data.fixed || []).length;
+      
+      div.innerHTML = 
+        '<span class="level-name" data-idx="' + idx + '" title="Clic para cargar">' + escapeHtml(entry.name) + '</span>' +
+        '<span class="level-info">' + info + ' · ' + objCount + ' obj</span>' +
+        '<div class="level-btns">' +
+          '<button data-action="up" data-idx="' + idx + '" title="Mover arriba"' + (idx === 0 ? ' disabled' : '') + '>↑</button>' +
+          '<button data-action="down" data-idx="' + idx + '" title="Mover abajo"' + (idx === levelList.length - 1 ? ' disabled' : '') + '>↓</button>' +
+          '<button data-action="duplicate" data-idx="' + idx + '" title="Duplicar">⎘</button>' +
+          '<button data-action="rename" data-idx="' + idx + '" title="Renombrar">✏</button>' +
+          '<button data-action="delete" data-idx="' + idx + '" title="Eliminar">✕</button>' +
+        '</div>';
+      
+      container.appendChild(div);
+    });
+    
+    // Event delegation
+    container.querySelectorAll('.level-name').forEach(el => {
+      el.addEventListener('click', () => loadLevelFromList(parseInt(el.dataset.idx)));
+    });
+    
+    container.querySelectorAll('button[data-action]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const idx = parseInt(btn.dataset.idx);
+        const action = btn.dataset.action;
+        
+        if(action === 'up') moveLevelInList(idx, -1);
+        else if(action === 'down') moveLevelInList(idx, 1);
+        else if(action === 'duplicate') duplicateLevelInList(idx);
+        else if(action === 'delete'){
+          if(confirm('¿Eliminar "' + levelList[idx].name + '"?')){
+            deleteLevelFromList(idx);
+          }
+        }
+        else if(action === 'rename'){
+          const newName = prompt('Nuevo nombre:', levelList[idx].name);
+          if(newName !== null && newName.trim()) renameLevelInList(idx, newName.trim());
+        }
+      });
+    });
+  }
+
+  function escapeHtml(str){
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  function exportAllLevels(){
+    const exportData = {
+      version: 1,
+      exportedAt: Date.now(),
+      levels: levelList
+    };
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], {type: 'application/json'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'lumen-levels-' + new Date().toISOString().slice(0,10) + '.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  function importLevels(jsonStr){
+    try {
+      const parsed = JSON.parse(jsonStr);
+      let imported = [];
+      
+      // Check if it's the new format with version
+      if(parsed.version && Array.isArray(parsed.levels)){
+        imported = parsed.levels;
+      }
+      // Check if it's just an array of levels
+      else if(Array.isArray(parsed)){
+        imported = parsed;
+      }
+      // Single level object - wrap in list format
+      else if(parsed.cols && parsed.rows){
+        imported = [{
+          id: generateLevelId(),
+          name: 'Nivel importado',
+          data: parsed,
+          savedAt: Date.now()
+        }];
+      }
+      else {
+        throw new Error('Formato no reconocido');
+      }
+      
+      // Validate and add each level
+      let count = 0;
+      imported.forEach(entry => {
+        if(entry.data && entry.data.cols && entry.data.rows){
+          // Ensure it has required fields
+          if(!entry.id) entry.id = generateLevelId();
+          if(!entry.name) entry.name = 'Nivel importado ' + (levelList.length + count + 1);
+          if(!entry.savedAt) entry.savedAt = Date.now();
+          levelList.push(entry);
+          count++;
+        }
+      });
+      
+      if(count > 0){
+        saveLevelListToStorage();
+        renderLevelList();
+        showMsg('Importados ' + count + ' nivel(es).', true);
+      } else {
+        showMsg('No se encontraron niveles válidos.', false);
+      }
+    } catch(e){
+      showMsg('Error al importar: ' + e.message, false);
+    }
+  }
+
+  // ============================================================
+  // BOARD CONSTRUCTION
+  // ============================================================
+  function buildBoard(lvl){
+    const b = [];
+    for(let r=0;r<lvl.rows;r++){ const row=[]; for(let c=0;c<lvl.cols;c++) row.push({type:'empty', fixed:false}); b.push(row); }
+    let rid=0;
+    lvl.fixed.forEach(o=>{
+      if(o.row>=lvl.rows || o.col>=lvl.cols) return;
+      b[o.row][o.col] = Object.assign({ fixed:true }, o, o.type==='receiver' ? {id:'R'+(rid++)} : {});
+    });
+    return b;
+  }
+
+  // ============================================================
+  // SIMULATION ENGINE
+  // ============================================================
+  function inputsFor(outEdge,r,c,rows,cols){
+    return {
+      up: r>0 ? outEdge[r-1][c].down : null,
+      down: r<rows-1 ? outEdge[r+1][c].up : null,
+      left: c>0 ? outEdge[r][c-1].right : null,
+      right: c<cols-1 ? outEdge[r][c+1].left : null,
+    };
+  }
+
+  function propagate(lvl, board, doorState, liftState){
+    const rows=lvl.rows, cols=lvl.cols;
+    let outEdge = Array.from({length:rows},()=>Array.from({length:cols},()=>({up:null,right:null,down:null,left:null})));
+    const sensorActive = Array.from({length:rows},()=>Array(cols).fill(false));
+    const receiverActive = Array.from({length:rows},()=>Array(cols).fill(false));
+    const dirIn = { left:{x:1,y:0}, right:{x:-1,y:0}, up:{x:0,y:1}, down:{x:0,y:-1} };
+    const dirOutOf = { '1,0':'right','-1,0':'left','0,1':'down','0,-1':'up' };
+
+    let changed=true, iter=0;
+    while(changed && iter<PROPAGATE_MAX_ITERS){
+      changed=false; iter++;
+      const next = Array.from({length:rows},()=>Array.from({length:cols},()=>({up:null,right:null,down:null,left:null})));
+      for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+        const cell = board[r][c];
+        const inp = inputsFor(outEdge,r,c,rows,cols);
+        const out = {up:null,right:null,down:null,left:null};
+        const key = c+','+r;
+
+        switch(cell.type){
+          case 'empty': CW.forEach(s=>{ if(inp[s]) out[PASS[s]]=inp[s]; }); break;
+          case 'wall': break;
+          case 'source': out[cell.dir] = cell.color; break;
+          case 'mirror': {
+            CW.forEach(s=>{
+              if(!inp[s]) return;
+              const d = dirIn[s];
+              const rf = cell.mirrorType==='slash' ? {x:-d.y,y:-d.x} : {x:d.y,y:d.x};
+              const os = dirOutOf[rf.x+','+rf.y];
+              if(os) out[os]=inp[s];
+            });
+            break;
+          }
+          case 'tunnel': {
+            const axis = cell.orientation==='h' ? ['left','right'] : ['up','down'];
+            axis.forEach(s=>{ if(inp[s]) out[PASS[s]]=inp[s]; });
+            break;
+          }
+          case 'liftableTunnel': {
+            const st = liftState[key] !== undefined ? liftState[key] : (cell.initialState || 'lowered');
+            if(st==='lowered'){
+              const axis = cell.orientation==='h' ? ['left','right'] : ['up','down'];
+              axis.forEach(s=>{ if(inp[s]) out[PASS[s]]=inp[s]; });
+            }
+            // When raised, block all beams (no output)
+            break;
+          }
+          case 'liftableWall': {
+            const st = liftState[key] !== undefined ? liftState[key] : (cell.initialState || 'lowered');
+            if(st==='lowered') CW.forEach(s=>{ if(inp[s]) out[PASS[s]]=inp[s]; });
+            // When raised, block all beams (no output)
+            break;
+          }
+          case 'receiver': {
+            CW.forEach(s=>{
+              if(!inp[s]) return;
+              if((cell.locks||[]).includes(s)) return;
+              if(inp[s]===cell.color) receiverActive[r][c]=true;
+            });
+            break;
+          }
+          case 'sensor': {
+            CW.forEach(s=>{
+              if(!inp[s]) return;
+              if((cell.locks||[]).includes(s)) return;
+              if(inp[s]===cell.color) sensorActive[r][c]=true;
+              const es = PASS[s];
+              if(!(cell.locks||[]).includes(es)) out[es]=inp[s];
+            });
+            break;
+          }
+          case 'hingeDoor': {
+            const st = doorState[key]!==undefined ? doorState[key] : (cell.initialState||0);
+            const blocked = st===0 ? cell.direction : CW[(CW.indexOf(cell.direction)+1)%4];
+            CW.forEach(s=>{
+              if(!inp[s] || s===blocked) return;
+              const es = PASS[s];
+              if(es===blocked) return;
+              out[es]=inp[s];
+            });
+            break;
+          }
+          case 'combiner': {
+            const others = CW.filter(s=>s!==cell.wallSide && s!==cell.outputSide);
+            const [a,b] = others;
+            if(a!==undefined && b!==undefined && inp[a] && inp[b]){
+              const mixed = mixColors(inp[a], inp[b]);
+              if(mixed) out[cell.outputSide]=mixed;
+            }
+            break;
+          }
+          case 'filter': {
+            if(inp[cell.direction]){
+              const ps = primSet(inp[cell.direction]);
+              const sides = clockwiseFrom(cell.direction);
+              (cell.outputOrder||'RGB').split('').forEach((letter,i)=>{
+                if(sides[i] && ps.has(letter)) out[sides[i]] = colorFromPrimSet(new Set([letter]));
+              });
+            }
+            break;
+          }
+          case 'complexFilter': {
+            if(inp[cell.direction]){
+              const psIn = primSet(inp[cell.direction]);
+              const psAllow = primSet(cell.inputColor||'white');
+              const eff = new Set([...psIn].filter(p=>psAllow.has(p)));
+              let sides = clockwiseFrom(cell.direction);
+              if(cell.darkSide) sides = sides.filter(s=>s!==cell.darkSide);
+              (cell.outputOrder||'').split('').forEach((letter,i)=>{
+                if(sides[i] && eff.has(letter)) out[sides[i]] = colorFromPrimSet(new Set([letter]));
+              });
+            }
+            break;
+          }
+          case 'splitter': {
+            if(inp[cell.direction]){
+              const colorIn = inp[cell.direction];
+              sidesExcept(cell.direction).forEach(s=>{ if(!(cell.blocked||[]).includes(s)) out[s]=colorIn; });
+            }
+            break;
+          }
+          default: break;
+        }
+        next[r][c]=out;
+        const prev = outEdge[r][c];
+        if(prev.up!==out.up||prev.right!==out.right||prev.down!==out.down||prev.left!==out.left) changed=true;
+      }
+      outEdge = next;
+    }
+    return { outEdge, sensorActive, receiverActive };
+  }
+
+  function buildSignaledSet(lvl, board, sensorActive){
+    const signaled = new Set();
+    CABLE_COLORS.forEach(color=>{
+      const present = new Set(lvl.cables.filter(cb=>cb.color===color).map(cb=>cb.col+','+cb.row));
+      const visited = new Set();
+      present.forEach(key=>{
+        if(visited.has(key)) return;
+        const comp=[key]; visited.add(key); let qi=0; let hasSignal=false;
+        while(qi<comp.length){
+          const [c,r] = comp[qi++].split(',').map(Number);
+          const cell = board[r] && board[r][c];
+          if(cell && cell.type==='sensor' && sensorActive[r][c]) hasSignal=true;
+          [[0,-1],[1,0],[0,1],[-1,0]].forEach(([dx,dy])=>{
+            const nk=(c+dx)+','+(r+dy);
+            if(present.has(nk) && !visited.has(nk)){ visited.add(nk); comp.push(nk); }
+          });
+        }
+        if(hasSignal) comp.forEach(k=>signaled.add(color+'|'+k));
+      });
+    });
+    return signaled;
+  }
+  function tileSignaled(lvl,c,r,signaledSet){
+    return lvl.cables.filter(cb=>cb.col===c&&cb.row===r).some(cb=>signaledSet.has(cb.color+'|'+c+','+r));
+  }
+
+  // Evaluate without timing - used for instantaneous state calculation
+  function evaluateInstant(lvl, board, doorState, liftState){
+    let res;
+    let changed = true;
+    
+    // Make copies to avoid modifying originals
+    doorState = Object.assign({}, doorState);
+    liftState = Object.assign({}, liftState);
+    
+    for(let outer=0; outer<EVALUATE_MAX_OUTER && changed; outer++){
+      res = propagate(lvl, board, doorState, liftState);
+      const signaled = buildSignaledSet(lvl, board, res.sensorActive);
+      
+      changed = false;
+      for(let r=0;r<lvl.rows;r++) for(let c=0;c<lvl.cols;c++){
+        const cell=board[r][c]; const key=c+','+r;
+        if(cell.type==='hingeDoor'){
+          const sig = tileSignaled(lvl,c,r,signaled);
+          const ns = sig ? (1-(cell.initialState||0)) : (cell.initialState||0);
+          if(ns!==doorState[key]) { doorState[key]=ns; changed=true; }
+        }
+        if(cell.type==='liftableWall' || cell.type==='liftableTunnel'){
+          const sig = tileSignaled(lvl,c,r,signaled);
+          const base = cell.initialState||'lowered';
+          const ns = sig ? (base==='lowered'?'raised':'lowered') : base;
+          if(ns!==liftState[key]) { liftState[key]=ns; changed=true; }
+        }
+      }
+    }
+    
+    res = propagate(lvl, board, doorState, liftState);
+    return Object.assign(res, {doorState, liftState});
+  }
+
+  // Evaluate with timing-based state changes
+  function evaluateWithTiming(lvl, board, signalTimers, deltaMs){
+    // Initialize base states from initial values
+    let doorState={}, liftState={};
+    for(let r=0;r<lvl.rows;r++) for(let c=0;c<lvl.cols;c++){
+      const cell=board[r][c]; const key=c+','+r;
+      if(cell.type==='hingeDoor') doorState[key]=cell.initialState||0;
+      if(cell.type==='liftableWall'||cell.type==='liftableTunnel') liftState[key]=cell.initialState||'lowered';
+    }
+    
+    // Apply current timer-based states (from previous frame's accumulated time)
+    for(let r=0;r<lvl.rows;r++) for(let c=0;c<lvl.cols;c++){
+      const cell=board[r][c]; const key=c+','+r;
+      const timer = signalTimers[key];
+      if(!timer) continue;
+      
+      if(cell.type==='hingeDoor'){
+        if(timer.active) doorState[key] = 1-(cell.initialState||0);
+      }
+      if(cell.type==='liftableWall' || cell.type==='liftableTunnel'){
+        const base = cell.initialState||'lowered';
+        if(timer.active) liftState[key] = base==='lowered'?'raised':'lowered';
+      }
+    }
+    
+    // Propagate with current states to find which sensors are active
+    let res = propagate(lvl, board, doorState, liftState);
+    const signaled = buildSignaledSet(lvl, board, res.sensorActive);
+    
+    // Update timers based on signal state
+    for(let r=0;r<lvl.rows;r++) for(let c=0;c<lvl.cols;c++){
+      const cell=board[r][c]; const key=c+','+r;
+      if(cell.type!=='hingeDoor' && cell.type!=='liftableWall' && cell.type!=='liftableTunnel') continue;
+      
+      const sig = tileSignaled(lvl,c,r,signaled);
+      
+      if(!signalTimers[key]){
+        signalTimers[key] = { signalTime: 0, noSignalTime: 0, active: false };
+      }
+      const timer = signalTimers[key];
+      
+      if(sig){
+        // Receiving signal
+        timer.signalTime += deltaMs;
+        timer.noSignalTime = 0;
+        
+        // Check if we should activate (0.5s of continuous signal)
+        if(!timer.active && timer.signalTime >= SIGNAL_ACTIVATE_MS){
+          timer.active = true;
+        }
+      } else {
+        // Not receiving signal
+        timer.noSignalTime += deltaMs;
+        timer.signalTime = 0;
+        
+        // Check if we should deactivate (0.2s without signal)
+        if(timer.active && timer.noSignalTime >= SIGNAL_DEACTIVATE_MS){
+          timer.active = false;
+        }
+      }
+      
+      // Apply timer state to door/lift state
+      if(cell.type==='hingeDoor'){
+        doorState[key] = timer.active ? (1-(cell.initialState||0)) : (cell.initialState||0);
+      }
+      if(cell.type==='liftableWall' || cell.type==='liftableTunnel'){
+        const base = cell.initialState||'lowered';
+        liftState[key] = timer.active ? (base==='lowered'?'raised':'lowered') : base;
+      }
+    }
+    
+    // Final propagation with the computed states
+    res = propagate(lvl, board, doorState, liftState);
+    
+    return Object.assign(res, {doorState, liftState, signalTimers});
+  }
+
+  // Legacy evaluate for editor preview (instant, no timing)
+  function evaluate(lvl, board){
+    let doorState={}, liftState={};
+    for(let r=0;r<lvl.rows;r++) for(let c=0;c<lvl.cols;c++){
+      const cell=board[r][c]; const key=c+','+r;
+      if(cell.type==='hingeDoor') doorState[key]=cell.initialState||0;
+      if(cell.type==='liftableWall'||cell.type==='liftableTunnel') liftState[key]=cell.initialState||'lowered';
+    }
+    return evaluateInstant(lvl, board, doorState, liftState);
+  }
+
+  // ============================================================
+  // DRAWING HELPERS
+  // ============================================================
+  function roundRect(ctx,x,y,w,h,r){
+    ctx.beginPath(); ctx.moveTo(x+r,y);
+    ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r);
+    ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath();
+  }
+  function edgeMid(side,cx,cy,half){
+    return side==='up'?{x:cx,y:cy-half}: side==='down'?{x:cx,y:cy+half}: side==='left'?{x:cx-half,y:cy}: {x:cx+half,y:cy};
+  }
+  function edgeTangent(side){ return (side==='up'||side==='down') ? {x:1,y:0} : {x:0,y:1}; }
+  function drawEdgeLine(ctx,side,cx,cy,half,inset,len){
+    const p = edgeMid(side,cx,cy,half-inset), t=edgeTangent(side); len=len||half*0.7;
+    ctx.beginPath(); ctx.moveTo(p.x-t.x*len,p.y-t.y*len); ctx.lineTo(p.x+t.x*len,p.y+t.y*len); ctx.stroke();
+  }
+  function drawEdgeArrow(ctx,side,cx,cy,half,outward){
+    const p = edgeMid(side,cx,cy,half*0.55);
+    const d = {up:{x:0,y:-1},down:{x:0,y:1},left:{x:-1,y:0},right:{x:1,y:0}}[side];
+    const sign = outward?1:-1, t=edgeTangent(side);
+    const tip = {x:p.x+d.x*half*0.28*sign, y:p.y+d.y*half*0.28*sign};
+    ctx.beginPath(); ctx.moveTo(tip.x,tip.y);
+    ctx.lineTo(p.x-d.x*half*0.14*sign+t.x*half*0.16, p.y-d.y*half*0.14*sign+t.y*half*0.16);
+    ctx.lineTo(p.x-d.x*half*0.14*sign-t.x*half*0.16, p.y-d.y*half*0.14*sign-t.y*half*0.16);
+    ctx.closePath(); ctx.fill();
+  }
+
+  function drawBoardBase(ctx, board, cols, rows, cellPx, receiverActiveGrid, progress, dynStates){
+    const w=cols*cellPx, h=rows*cellPx;
+    ctx.clearRect(0,0,w,h);
+    ctx.strokeStyle='rgba(94,234,212,0.09)'; ctx.lineWidth=1;
+    for(let c=0;c<=cols;c++){ ctx.beginPath(); ctx.moveTo(c*cellPx,0); ctx.lineTo(c*cellPx,h); ctx.stroke(); }
+    for(let r=0;r<=rows;r++){ ctx.beginPath(); ctx.moveTo(0,r*cellPx); ctx.lineTo(w,r*cellPx); ctx.stroke(); }
+
+    for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+      const cell = board[r][c];
+      const cx=c*cellPx+cellPx/2, cy=r*cellPx+cellPx/2, half=cellPx/2;
+      const key = c+','+r;
+      const dyn = dynStates ? { 
+        door: dynStates.doorState && dynStates.doorState[key], 
+        lift: dynStates.liftState && dynStates.liftState[key],
+        timer: dynStates.signalTimers && dynStates.signalTimers[key]
+      } : null;
+
+      if(cell.type==='wall'){
+        const pad=cellPx*0.10;
+        ctx.fillStyle='#1c2330'; ctx.strokeStyle= cell.fixed?'#2a3344':'#3a4a63'; ctx.lineWidth=2;
+        roundRect(ctx,c*cellPx+pad,r*cellPx+pad,cellPx-pad*2,cellPx-pad*2,cellPx*0.14); ctx.fill(); ctx.stroke();
+      }
+      else if(cell.type==='tunnel' || cell.type==='liftableTunnel'){
+        const isLift = cell.type==='liftableTunnel';
+        const st = isLift ? ((dyn&&dyn.lift!==undefined)?dyn.lift:(cell.initialState||'lowered')) : 'lowered';
+        const raised = isLift && st==='raised';
+        const pad=cellPx*0.10;
+        ctx.save();
+        ctx.fillStyle = isLift?'#2b2113':'#1c2330'; ctx.strokeStyle= isLift?'#8a6a34':'#2a3344'; ctx.lineWidth=2;
+        roundRect(ctx,c*cellPx+pad,r*cellPx+pad,cellPx-pad*2,cellPx-pad*2,cellPx*0.12); ctx.fill(); ctx.stroke();
+        if(!raised){
+          ctx.fillStyle='#0c0f16';
+          if(cell.orientation==='h') ctx.fillRect(c*cellPx+pad,cy-cellPx*0.11,cellPx-pad*2,cellPx*0.22);
+          else ctx.fillRect(cx-cellPx*0.11,r*cellPx+pad,cellPx*0.22,cellPx-pad*2);
+        }
+        ctx.restore();
+        // Draw signal timer progress for liftable tunnel
+        if(isLift && dyn && dyn.timer){
+          const timer = dyn.timer;
+          let timerProgress = 0;
+          let timerColor = '#5eead4';
+          if(!timer.active && timer.signalTime > 0){
+            // Charging up to activate
+            timerProgress = Math.min(1, timer.signalTime / SIGNAL_ACTIVATE_MS);
+            timerColor = '#4ade80'; // green - activating
+          } else if(timer.active && timer.noSignalTime > 0){
+            // Counting down to deactivate
+            timerProgress = 1 - Math.min(1, timer.noSignalTime / SIGNAL_DEACTIVATE_MS);
+            timerColor = '#fbbf24'; // yellow - deactivating
+          } else if(timer.active){
+            timerProgress = 1;
+            timerColor = '#4ade80';
+          }
+          if(timerProgress > 0){
+            ctx.save();
+            ctx.strokeStyle = timerColor;
+            ctx.lineWidth = cellPx * 0.05;
+            ctx.beginPath();
+            ctx.arc(cx, cy, cellPx * 0.38, -Math.PI/2, -Math.PI/2 + timerProgress * Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
+      }
+      else if(cell.type==='liftableWall'){
+        const st=(dyn&&dyn.lift!==undefined)?dyn.lift:(cell.initialState||'lowered'); const pad=cellPx*0.10;
+        ctx.save();
+        if(st==='raised'){ ctx.fillStyle='#2b1a13'; ctx.strokeStyle='#c2814a'; ctx.lineWidth=2;
+          roundRect(ctx,c*cellPx+pad,r*cellPx+pad,cellPx-pad*2,cellPx-pad*2,cellPx*0.12); ctx.fill(); ctx.stroke();
+        } else { ctx.strokeStyle='#c2814a'; ctx.lineWidth=1.5; ctx.setLineDash([cellPx*0.06,cellPx*0.06]);
+          roundRect(ctx,c*cellPx+pad,r*cellPx+pad,cellPx-pad*2,cellPx-pad*2,cellPx*0.12); ctx.stroke();
+        }
+        ctx.restore();
+        // Draw signal timer progress for liftable wall
+        if(dyn && dyn.timer){
+          const timer = dyn.timer;
+          let timerProgress = 0;
+          let timerColor = '#5eead4';
+          if(!timer.active && timer.signalTime > 0){
+            timerProgress = Math.min(1, timer.signalTime / SIGNAL_ACTIVATE_MS);
+            timerColor = '#4ade80';
+          } else if(timer.active && timer.noSignalTime > 0){
+            timerProgress = 1 - Math.min(1, timer.noSignalTime / SIGNAL_DEACTIVATE_MS);
+            timerColor = '#fbbf24';
+          } else if(timer.active){
+            timerProgress = 1;
+            timerColor = '#4ade80';
+          }
+          if(timerProgress > 0){
+            ctx.save();
+            ctx.strokeStyle = timerColor;
+            ctx.lineWidth = cellPx * 0.05;
+            ctx.beginPath();
+            ctx.arc(cx, cy, cellPx * 0.38, -Math.PI/2, -Math.PI/2 + timerProgress * Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
+      }
+      else if(cell.type==='combiner'){
+        const pad=cellPx*0.16;
+        ctx.save();
+        ctx.fillStyle='#1a1526'; ctx.strokeStyle='#6d5aa8'; ctx.lineWidth=2;
+        roundRect(ctx,c*cellPx+pad,r*cellPx+pad,cellPx-pad*2,cellPx-pad*2,cellPx*0.12); ctx.fill(); ctx.stroke();
+        ctx.strokeStyle='#a78bfa'; ctx.lineWidth=cellPx*0.09; ctx.lineCap='round';
+        drawEdgeLine(ctx,cell.wallSide,cx,cy,half,pad);
+        ctx.fillStyle='#5eead4'; drawEdgeArrow(ctx,cell.outputSide,cx,cy,half,true);
+        ctx.fillStyle='#8a93a6';
+        CW.filter(s=>s!==cell.wallSide&&s!==cell.outputSide).forEach(s=>drawEdgeArrow(ctx,s,cx,cy,half,false));
+        ctx.restore();
+      }
+      else if(cell.type==='filter' || cell.type==='complexFilter'){
+        ctx.save(); ctx.translate(cx,cy); ctx.rotate(Math.PI/4);
+        const s=cellPx*0.30; ctx.fillStyle='#141c2a'; ctx.strokeStyle='#5eead4'; ctx.lineWidth=2;
+        ctx.fillRect(-s,-s,s*2,s*2); ctx.strokeRect(-s,-s,s*2,s*2); ctx.restore();
+        const inColor = cell.type==='filter' ? '#f5f7fb' : (COLORS[cell.inputColor]||'#f5f7fb');
+        ctx.save(); ctx.strokeStyle=inColor; ctx.lineWidth=cellPx*0.06; ctx.lineCap='round';
+        drawEdgeLine(ctx,cell.direction,cx,cy,half,cellPx*0.05); ctx.restore();
+        let sides = clockwiseFrom(cell.direction);
+        if(cell.type==='complexFilter' && cell.darkSide) sides = sides.filter(s=>s!==cell.darkSide);
+        (cell.outputOrder||'').split('').forEach((letter,i)=>{
+          if(!sides[i]) return;
+          ctx.save(); ctx.strokeStyle=COLORS[colorFromPrimSet(new Set([letter]))]; ctx.lineWidth=cellPx*0.06; ctx.lineCap='round';
+          drawEdgeLine(ctx,sides[i],cx,cy,half,cellPx*0.05); ctx.restore();
+        });
+        if(cell.type==='complexFilter' && cell.darkSide){
+          ctx.save(); ctx.strokeStyle='#2a3344'; ctx.lineWidth=cellPx*0.06; ctx.lineCap='round';
+          drawEdgeLine(ctx,cell.darkSide,cx,cy,half,cellPx*0.05); ctx.restore();
+        }
+      }
+      else if(cell.type==='splitter'){
+        const pad=cellPx*0.16;
+        ctx.save();
+        ctx.fillStyle='#141c2a'; ctx.strokeStyle='#5eead4'; ctx.lineWidth=2;
+        roundRect(ctx,c*cellPx+pad,r*cellPx+pad,cellPx-pad*2,cellPx-pad*2,cellPx*0.10); ctx.fill(); ctx.stroke();
+        ctx.fillStyle='#5eead4'; drawEdgeArrow(ctx,cell.direction,cx,cy,half,false);
+        sidesExcept(cell.direction).forEach(s=>{
+          const blocked=(cell.blocked||[]).includes(s);
+          ctx.strokeStyle = blocked?'#3a4252':'#5eead4'; ctx.lineWidth=cellPx*0.05; ctx.lineCap='round';
+          drawEdgeLine(ctx,s,cx,cy,half,cellPx*0.05);
+        });
+        ctx.restore();
+      }
+      else if(cell.type==='sensor'){
+        ctx.save(); ctx.translate(cx,cy); ctx.rotate(Math.PI/4);
+        const s=cellPx*0.24; ctx.fillStyle='#171d28'; ctx.strokeStyle=COLORS[cell.color]; ctx.lineWidth=2.5;
+        ctx.shadowColor=COLORS[cell.color]; ctx.shadowBlur=cellPx*0.2;
+        ctx.fillRect(-s,-s,s*2,s*2); ctx.strokeRect(-s,-s,s*2,s*2); ctx.restore();
+        (cell.locks||[]).forEach(s=>{ ctx.save(); ctx.strokeStyle='#ff8fa0'; ctx.lineWidth=cellPx*0.08; ctx.lineCap='round'; drawEdgeLine(ctx,s,cx,cy,half,cellPx*0.03); ctx.restore(); });
+      }
+      else if(cell.type==='hingeDoor'){
+        const st = dyn && dyn.door!==undefined && dyn.door!==null ? dyn.door : (cell.initialState||0);
+        const blocked = st===0 ? cell.direction : CW[(CW.indexOf(cell.direction)+1)%4];
+        ctx.save(); ctx.strokeStyle='#dfe9f5'; ctx.lineWidth=cellPx*0.09; ctx.lineCap='round';
+        drawEdgeLine(ctx,blocked,cx,cy,half,cellPx*0.06); ctx.restore();
+        const hp = edgeMid(cell.direction,cx,cy,half);
+        ctx.save(); ctx.fillStyle='#5eead4'; ctx.beginPath(); ctx.arc(hp.x,hp.y,cellPx*0.05,0,Math.PI*2); ctx.fill(); ctx.restore();
+        // Draw signal timer progress for hinge door
+        if(dyn && dyn.timer){
+          const timer = dyn.timer;
+          let timerProgress = 0;
+          let timerColor = '#5eead4';
+          if(!timer.active && timer.signalTime > 0){
+            timerProgress = Math.min(1, timer.signalTime / SIGNAL_ACTIVATE_MS);
+            timerColor = '#4ade80';
+          } else if(timer.active && timer.noSignalTime > 0){
+            timerProgress = 1 - Math.min(1, timer.noSignalTime / SIGNAL_DEACTIVATE_MS);
+            timerColor = '#fbbf24';
+          } else if(timer.active){
+            timerProgress = 1;
+            timerColor = '#4ade80';
+          }
+          if(timerProgress > 0){
+            ctx.save();
+            ctx.strokeStyle = timerColor;
+            ctx.lineWidth = cellPx * 0.05;
+            ctx.beginPath();
+            ctx.arc(cx, cy, cellPx * 0.32, -Math.PI/2, -Math.PI/2 + timerProgress * Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+          }
+        }
+      }
+      else if(cell.type==='mirror'){
+        const pad=cellPx*0.20;
+        ctx.save(); ctx.strokeStyle='#dfe9f5'; ctx.shadowColor='rgba(223,233,245,0.6)'; ctx.shadowBlur=cellPx*0.18;
+        ctx.lineWidth=cellPx*0.09; ctx.lineCap='round'; ctx.beginPath();
+        if(cell.mirrorType==='slash'){ ctx.moveTo(c*cellPx+pad,r*cellPx+cellPx-pad); ctx.lineTo(c*cellPx+cellPx-pad,r*cellPx+pad); }
+        else { ctx.moveTo(c*cellPx+pad,r*cellPx+pad); ctx.lineTo(c*cellPx+cellPx-pad,r*cellPx+cellPx-pad); }
+        ctx.stroke(); ctx.restore();
+      }
+      else if(cell.type==='source'){
+        ctx.save();
+        ctx.fillStyle='#171d28'; ctx.strokeStyle=COLORS[cell.color]; ctx.lineWidth=2;
+        ctx.beginPath(); ctx.arc(cx,cy,cellPx*0.30,0,Math.PI*2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle=COLORS[cell.color]; ctx.shadowColor=COLORS[cell.color]; ctx.shadowBlur=cellPx*0.4;
+        const dv = DIRS[cell.dir]; const ang=Math.atan2(dv.y,dv.x); const tip=cellPx*0.20;
+        ctx.beginPath();
+        ctx.moveTo(cx+Math.cos(ang)*tip, cy+Math.sin(ang)*tip);
+        ctx.lineTo(cx+Math.cos(ang+2.4)*tip*0.6, cy+Math.sin(ang+2.4)*tip*0.6);
+        ctx.lineTo(cx+Math.cos(ang-2.4)*tip*0.6, cy+Math.sin(ang-2.4)*tip*0.6);
+        ctx.closePath(); ctx.fill(); ctx.restore();
+      }
+      else if(cell.type==='receiver'){
+        const active = receiverActiveGrid && receiverActiveGrid[r][c];
+        ctx.save();
+        ctx.strokeStyle=COLORS[cell.color]; ctx.lineWidth=2.5;
+        ctx.shadowColor=COLORS[cell.color]; ctx.shadowBlur= active?cellPx*0.6:cellPx*0.15;
+        ctx.beginPath(); ctx.arc(cx,cy,cellPx*0.28,0,Math.PI*2); ctx.stroke();
+        ctx.globalAlpha = active?0.55:0.12; ctx.fillStyle=COLORS[cell.color];
+        ctx.beginPath(); ctx.arc(cx,cy,cellPx*0.20,0,Math.PI*2); ctx.fill();
+        ctx.restore();
+        (cell.locks||[]).forEach(s=>{ ctx.save(); ctx.strokeStyle='#ff8fa0'; ctx.lineWidth=cellPx*0.08; ctx.lineCap='round'; drawEdgeLine(ctx,s,cx,cy,half,cellPx*0.03); ctx.restore(); });
+        if(progress>0){
+          ctx.save(); ctx.strokeStyle='#ffffff'; ctx.lineWidth=cellPx*0.06;
+          ctx.beginPath(); ctx.arc(cx,cy,cellPx*0.37,-Math.PI/2,-Math.PI/2+progress*Math.PI*2); ctx.stroke(); ctx.restore();
+        }
+      }
+    }
+  }
+
+  function drawBeamsFromOutEdge(ctx, outEdge, cols, rows, cellPx){
+    const DELTA = { up:[0,-1], right:[1,0], down:[0,1], left:[-1,0] };
+    for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+      const edges = outEdge[r][c];
+      CW.forEach(side=>{
+        const color = edges[side]; if(!color) return;
+        const [dx,dy] = DELTA[side];
+        const cx=c*cellPx+cellPx/2, cy=r*cellPx+cellPx/2;
+        const nc=c+dx, nr=r+dy;
+        let ex,ey;
+        if(nc>=0&&nc<cols&&nr>=0&&nr<rows){ ex=nc*cellPx+cellPx/2; ey=nr*cellPx+cellPx/2; }
+        else { ex=cx+dx*cellPx/2; ey=cy+dy*cellPx/2; }
+        ctx.save();
+        ctx.strokeStyle=COLORS[color]; ctx.shadowColor=COLORS[color]; ctx.shadowBlur=cellPx*0.5;
+        ctx.lineWidth=cellPx*0.10; ctx.lineCap='round';
+        const dash=cellPx*0.4;
+        ctx.setLineDash([dash,dash*0.6]);
+        ctx.lineDashOffset = -(performance.now()/45)%(dash*1.6);
+        ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(ex,ey); ctx.stroke();
+        ctx.restore();
+      });
+    }
+  }
+
+  function drawCables(ctx, cables, cellPx, opacity){
+    ctx.save(); ctx.globalAlpha=opacity; ctx.lineCap='round';
+    CABLE_COLORS.forEach((color, idx)=>{
+      const offset = (idx-2)*cellPx*0.045;
+      const set = new Set(cables.filter(cb=>cb.color===color).map(cb=>cb.col+','+cb.row));
+      set.forEach(key=>{
+        const [c,r] = key.split(',').map(Number);
+        const cx=c*cellPx+cellPx/2, cy=r*cellPx+cellPx/2;
+        const neighbors = [[0,-1],[1,0],[0,1],[-1,0]];
+        let conns=0;
+        ctx.strokeStyle=CABLE_HEX[color]; ctx.lineWidth=cellPx*0.045;
+        neighbors.forEach(([dx,dy])=>{
+          const nk=(c+dx)+','+(r+dy);
+          if(set.has(nk)){
+            conns++;
+            const perpX = dy!==0?offset:0, perpY = dx!==0?offset:0;
+            const ex=cx+dx*cellPx/2, ey=cy+dy*cellPx/2;
+            ctx.beginPath(); ctx.moveTo(cx+perpX,cy+perpY); ctx.lineTo(ex+perpX,ey+perpY); ctx.stroke();
+          }
+        });
+        if(conns===0){ ctx.fillStyle=CABLE_HEX[color]; ctx.beginPath(); ctx.arc(cx+offset,cy+offset,cellPx*0.035,0,Math.PI*2); ctx.fill(); }
+      });
+    });
+    ctx.restore();
+  }
+
+  function mirrorIconSVG(type, dim){
+    const stroke = dim ? '#3a4252' : '#dfe9f5';
+    const p = type==='slash' ? [7,23,23,7] : [7,7,23,23];
+    return '<svg viewBox="0 0 30 30"><line x1="'+p[0]+'" y1="'+p[1]+'" x2="'+p[2]+'" y2="'+p[3]+'" stroke="'+stroke+'" stroke-width="3.5" stroke-linecap="round"/></svg>';
+  }
+  function wallIconSVG(dim){
+    const stroke = dim ? '#3a4252' : '#dfe9f5';
+    return '<svg viewBox="0 0 30 30"><rect x="6" y="6" width="18" height="18" rx="3" fill="none" stroke="'+stroke+'" stroke-width="3"/></svg>';
+  }
+  function tunnelIconSVG(orientation, dim){
+    const stroke = dim ? '#3a4252' : '#dfe9f5';
+    const gap = orientation==='h' ? '<rect x="4" y="12" width="22" height="6" fill="#0c0f16"/>' : '<rect x="12" y="4" width="6" height="22" fill="#0c0f16"/>';
+    return '<svg viewBox="0 0 30 30"><rect x="4" y="4" width="22" height="22" rx="3" fill="none" stroke="'+stroke+'" stroke-width="3"/>'+gap+'</svg>';
+  }
+
+  // ============================================================
+  // EDITOR
+  // ============================================================
+  const edCanvas = document.getElementById('board');
+  const edCtx = edCanvas.getContext('2d');
+  let edCellPx = 0;
+  let edBoard = buildBoard(level);
+  let activeTool = 'wall';
+  let activeCable = 'orange';
+  let layer = 'objects';
+  let inspecting = null;
+
+  function resizeEditorCanvas(){
+    const dpr = window.devicePixelRatio||1;
+    edCanvas.style.aspectRatio = level.cols+' / '+level.rows;
+    const rect = edCanvas.getBoundingClientRect();
+    edCanvas.width = Math.round(rect.width*dpr); edCanvas.height = Math.round(rect.height*dpr);
+    edCtx.setTransform(dpr,0,0,dpr,0,0);
+    edCellPx = rect.width/level.cols;
+    drawEditor();
+  }
+  window.addEventListener('resize', resizeEditorCanvas);
+
+  function drawEditor(){
+    if(layer==='objects'){
+      drawCables(edCtx, level.cables, edCellPx, 0.35);
+      drawBoardBase(edCtx, edBoard, level.cols, level.rows, edCellPx, null, 0, null);
+    } else {
+      drawBoardBase(edCtx, edBoard, level.cols, level.rows, edCellPx, null, 0, null);
+      edCtx.save(); edCtx.globalAlpha=0.4; edCtx.fillStyle='#000'; edCtx.fillRect(0,0,level.cols*edCellPx,level.rows*edCellPx); edCtx.restore();
+      drawCables(edCtx, level.cables, edCellPx, 1);
+    }
+    if(inspecting && layer==='objects'){
+      const {col,row}=inspecting;
+      edCtx.save(); edCtx.strokeStyle='#5eead4'; edCtx.lineWidth=2.5;
+      edCtx.strokeRect(col*edCellPx+2,row*edCellPx+2,edCellPx-4,edCellPx-4); edCtx.restore();
+    }
+  }
+
+  function findFixed(col,row){ return level.fixed.find(o=>o.col===col&&o.row===row); }
+  function removeFixed(col,row){ level.fixed = level.fixed.filter(o=>!(o.col===col&&o.row===row)); }
+  function rebuildAndRedraw(){ edBoard = buildBoard(level); drawEditor(); }
+
+  document.querySelectorAll('#objectTools button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('#objectTools button').forEach(b=>b.classList.remove('on'));
+      btn.classList.add('on'); activeTool = btn.dataset.tool; closeInspector();
+    });
+  });
+  document.querySelectorAll('#circuitTools button').forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      document.querySelectorAll('#circuitTools button').forEach(b=>b.classList.remove('on'));
+      btn.classList.add('on'); activeCable = btn.dataset.cable;
+    });
+  });
+
+  document.getElementById('layerToggleBtn').addEventListener('click', ()=>{
+    layer = layer==='objects' ? 'circuits' : 'objects';
+    const btn = document.getElementById('layerToggleBtn');
+    btn.textContent = layer==='objects' ? 'Capa: Objetos' : 'Capa: Circuitos';
+    document.getElementById('objectTools').style.display = layer==='objects' ? 'grid' : 'none';
+    document.getElementById('circuitTools').style.display = layer==='circuits' ? 'grid' : 'none';
+    document.getElementById('clearCircuitsRow').style.display = layer==='circuits' ? 'flex' : 'none';
+    document.getElementById('toolHelpLabel').textContent = layer==='objects'
+      ? 'Toca una casilla vacía para colocar el objeto activo. Toca un objeto ya puesto para editarlo.'
+      : 'Toca una casilla para pintar/quitar el cable del color activo. Con "Borrador" quitas todos los cables de esa casilla.';
+    closeInspector();
+    drawEditor();
+  });
+
+  document.getElementById('clearCircuitsBtn').addEventListener('click', ()=>{
+    if(confirm('¿Borrar todos los cables del nivel?')){ level.cables=[]; drawEditor(); }
+  });
+
+  edCanvas.addEventListener('pointerdown', (e)=>{
+    const rect = edCanvas.getBoundingClientRect();
+    const c = Math.floor((e.clientX-rect.left)/(rect.width/level.cols));
+    const r = Math.floor((e.clientY-rect.top)/(rect.height/level.rows));
+    if(c<0||c>=level.cols||r<0||r>=level.rows) return;
+
+    if(layer==='circuits'){
+      if(activeCable==='erase'){ level.cables = level.cables.filter(cb=>!(cb.col===c&&cb.row===r)); }
+      else {
+        const i = level.cables.findIndex(cb=>cb.col===c&&cb.row===r&&cb.color===activeCable);
+        if(i>=0) level.cables.splice(i,1); else level.cables.push({col:c,row:r,color:activeCable});
+      }
+      drawEditor();
+      return;
+    }
+
+    const existing = findFixed(c,r);
+    if(activeTool==='erase'){
+      if(existing){ removeFixed(c,r); closeInspector(); rebuildAndRedraw(); }
+      return;
+    }
+    if(existing){ inspecting={col:c,row:r}; openInspector(existing); drawEditor(); return; }
+    const obj = Object.assign({ col:c, row:r, type:activeTool }, defaultObject(activeTool));
+    level.fixed.push(obj);
+    rebuildAndRedraw();
+    inspecting = {col:c,row:r};
+    openInspector(obj);
+    drawEditor();
+  });
+
+  const inspectorPanel = document.getElementById('inspectorPanel');
+  const inspectorEl = document.getElementById('inspector');
+  function closeInspector(){ inspecting=null; inspectorPanel.style.display='none'; inspectorEl.innerHTML=''; }
+
+  function selectHtml(id,label,options,current){
+    return '<label>'+label+'<select id="'+id+'">'+options.map(([v,l])=>'<option value="'+v+'"'+(String(v)===String(current)?' selected':'')+'>'+l+'</option>').join('')+'</select></label>';
+  }
+  function sideChecklistHtml(cls,label,sides,selected){
+    return '<label>'+label+'<span class="checkgrid">'+sides.map(([v,l])=>'<label class="inline-check"><input type="checkbox" class="'+cls+'" value="'+v+'" '+(selected.includes(v)?'checked':'')+'>'+l+'</label>').join('')+'</span></label>';
+  }
+
+  function openInspector(obj){
+    inspectorPanel.style.display='block';
+    let html = '<div class="title">'+TYPE_LABEL[obj.type]+' · ('+obj.col+', '+obj.row+')</div><div class="row">';
+
+    if(obj.type==='mirror'){
+      html += selectHtml('fMirror','Orientación',[['slash','/'],['backslash','\\']],obj.mirrorType);
+    }
+    else if(obj.type==='tunnel'){
+      html += selectHtml('fOrient','Eje',[['h','Horizontal'],['v','Vertical']],obj.orientation);
+    }
+    else if(obj.type==='source'){
+      html += selectHtml('fColor','Color',COLOR_KEYS.map(k=>[k,k]),obj.color);
+      html += selectHtml('fDir','Dirección',DIR_OPTIONS,obj.dir);
+    }
+    else if(obj.type==='receiver'){
+      html += selectHtml('fColor','Color',COLOR_KEYS.map(k=>[k,k]),obj.color);
+      html += '</div><div class="row">'+sideChecklistHtml('fLocks','Lados bloqueados',DIR_OPTIONS,obj.locks||[]);
+    }
+    else if(obj.type==='combiner'){
+      html += selectHtml('fWallSide','Lado pared',DIR_OPTIONS,obj.wallSide);
+      html += selectHtml('fOutSide','Lado salida',DIR_OPTIONS.filter(([v])=>v!==obj.wallSide),obj.outputSide);
+    }
+    else if(obj.type==='filter'){
+      html += selectHtml('fDir4','Lado entrada (blanco)',DIR_OPTIONS,obj.direction);
+      const opts = permsOfSize(['R','G','B'],3).map(p=>p.join('')).map(o=>[o,o]);
+      html += selectHtml('fOrder','Orden salida (CW)',opts,obj.outputOrder);
+    }
+    else if(obj.type==='complexFilter'){
+      html += selectHtml('fDir4','Lado entrada',DIR_OPTIONS,obj.direction);
+      html += selectHtml('fInColor','Color aceptado',COLOR_KEYS.map(k=>[k,k]),obj.inputColor);
+      html += selectHtml('fDark','Lado oscuro',[['','Ninguno']].concat(DIR_OPTIONS.filter(([v])=>v!==obj.direction)),obj.darkSide);
+      const k = obj.darkSide ? 2 : 3;
+      const opts = permsOfSize(['R','G','B'],k).map(p=>p.join('')).map(o=>[o,o]);
+      if(!opts.some(([v])=>v===obj.outputOrder)) obj.outputOrder = opts[0][0];
+      html += selectHtml('fOrder','Orden salida (CW)',opts,obj.outputOrder);
+    }
+    else if(obj.type==='splitter'){
+      html += selectHtml('fDir4','Lado entrada',DIR_OPTIONS,obj.direction);
+      html += '</div><div class="row">'+sideChecklistHtml('fBlocked','Bloquear salidas',DIR_OPTIONS.filter(([v])=>v!==obj.direction),obj.blocked||[]);
+    }
+    else if(obj.type==='sensor'){
+      html += selectHtml('fColor','Color',COLOR_KEYS.map(k=>[k,k]),obj.color);
+      html += '</div><div class="row">'+sideChecklistHtml('fLocks','Lados bloqueados',DIR_OPTIONS,obj.locks||[]);
+    }
+    else if(obj.type==='hingeDoor'){
+      html += selectHtml('fDir4','Lado puerta (estado inicial)',DIR_OPTIONS,obj.direction);
+      html += selectHtml('fInitState','Estado inicial',[[0,'Cerrada (lado elegido)'],[1,'Girada 90°']],obj.initialState);
+    }
+    else if(obj.type==='liftableWall'){
+      html += selectHtml('fInitLift','Estado inicial',[['raised','Subida (bloquea)'],['lowered','Bajada (pasa)']],obj.initialState);
+    }
+    else if(obj.type==='liftableTunnel'){
+      html += selectHtml('fOrient','Eje',[['h','Horizontal'],['v','Vertical']],obj.orientation);
+      html += selectHtml('fInitLift','Estado inicial',[['raised','Subida (bloquea)'],['lowered','Bajada (pasa)']],obj.initialState);
+    }
+
+    html += '</div><div class="row" style="margin-top:8px;"><button id="removeObjBtn">Eliminar objeto</button></div>';
+    inspectorEl.innerHTML = html;
+
+    const bind = (id,handler)=>{ const el=document.getElementById(id); if(el) el.addEventListener('change',handler); };
+    bind('fMirror', e=>{ obj.mirrorType=e.target.value; rebuildAndRedraw(); });
+    bind('fOrient', e=>{ obj.orientation=e.target.value; rebuildAndRedraw(); });
+    bind('fColor', e=>{ obj.color=e.target.value; rebuildAndRedraw(); });
+    bind('fDir', e=>{ obj.dir=e.target.value; rebuildAndRedraw(); });
+    bind('fDir4', e=>{ obj.direction=e.target.value; if(obj.type==='combiner'); rebuildAndRedraw(); openInspector(obj); });
+    bind('fWallSide', e=>{ obj.wallSide=e.target.value; if(obj.outputSide===obj.wallSide) obj.outputSide=DIR_OPTIONS.find(([v])=>v!==obj.wallSide)[0]; rebuildAndRedraw(); openInspector(obj); });
+    bind('fOutSide', e=>{ obj.outputSide=e.target.value; rebuildAndRedraw(); });
+    bind('fOrder', e=>{ obj.outputOrder=e.target.value; rebuildAndRedraw(); });
+    bind('fInColor', e=>{ obj.inputColor=e.target.value; rebuildAndRedraw(); });
+    bind('fDark', e=>{ obj.darkSide=e.target.value; rebuildAndRedraw(); openInspector(obj); });
+    bind('fInitState', e=>{ obj.initialState=parseInt(e.target.value); rebuildAndRedraw(); });
+    bind('fInitLift', e=>{ obj.initialState=e.target.value; rebuildAndRedraw(); });
+
+    inspectorEl.querySelectorAll('.fLocks').forEach(cb=>cb.addEventListener('change', ()=>{
+      obj.locks = Array.from(inspectorEl.querySelectorAll('.fLocks:checked')).map(x=>x.value); rebuildAndRedraw();
+    }));
+    inspectorEl.querySelectorAll('.fBlocked').forEach(cb=>cb.addEventListener('change', ()=>{
+      obj.blocked = Array.from(inspectorEl.querySelectorAll('.fBlocked:checked')).map(x=>x.value); rebuildAndRedraw();
+    }));
+
+    document.getElementById('removeObjBtn').addEventListener('click', ()=>{ removeFixed(obj.col,obj.row); closeInspector(); rebuildAndRedraw(); });
+  }
+
+  document.getElementById('applySizeBtn').addEventListener('click', ()=>{
+    const cols = clamp(parseInt(document.getElementById('colsInput').value)||8,2,32);
+    const rows = clamp(parseInt(document.getElementById('rowsInput').value)||6,2,32);
+    level.cols=cols; level.rows=rows;
+    level.fixed = level.fixed.filter(o=>o.col<cols&&o.row<rows);
+    level.cables = level.cables.filter(cb=>cb.col<cols&&cb.row<rows);
+    closeInspector(); resizeEditorCanvas();
+  });
+
+  const plistEl = document.getElementById('plist');
+  function renderPlist(){
+    plistEl.innerHTML='';
+    level.palette.forEach((p,idx)=>{
+      const row = document.createElement('div'); row.className='prow';
+      const isMirror = p.type==='mirror', isTunnel = p.type==='tunnel';
+      row.innerHTML =
+        '<select data-i="'+idx+'" class="ptype">'+
+          '<option value="mirror-slash"'+(isMirror&&p.mirrorType==='slash'?' selected':'')+'>Espejo /</option>'+
+          '<option value="mirror-backslash"'+(isMirror&&p.mirrorType==='backslash'?' selected':'')+'>Espejo \\</option>'+
+          '<option value="wall"'+(p.type==='wall'?' selected':'')+'>Pared</option>'+
+          '<option value="tunnel"'+(isTunnel?' selected':'')+'>Túnel</option>'+
+        '</select>'+
+        '<label class="inline-check">Cant.<input type="number" min="1" max="20" class="pcount" data-i="'+idx+'" value="'+p.count+'"></label>'+
+        ((isMirror||isTunnel) ? '<label class="inline-check"><input type="checkbox" class="pblock" data-i="'+idx+'" '+(p.blockRotation?'checked':'')+'> Bloquear rotación</label>' : '') +
+        '<button class="premove" data-i="'+idx+'">✕</button>';
+      plistEl.appendChild(row);
+    });
+    plistEl.querySelectorAll('.ptype').forEach(sel=>sel.addEventListener('change', ()=>{
+      const i=+sel.dataset.i, v=sel.value; const prevCount = level.palette[i].count||1;
+      if(v==='wall') level.palette[i]={type:'wall', count:prevCount};
+      else if(v==='tunnel') level.palette[i]={type:'tunnel', orientation:'h', count:prevCount, blockRotation:true};
+      else level.palette[i]={type:'mirror', mirrorType: v==='mirror-slash'?'slash':'backslash', count:prevCount, blockRotation:true};
+      renderPlist();
+    }));
+    plistEl.querySelectorAll('.pcount').forEach(inp=>inp.addEventListener('input', ()=>{ level.palette[+inp.dataset.i].count=clamp(parseInt(inp.value)||1,1,99); }));
+    plistEl.querySelectorAll('.pblock').forEach(cb=>cb.addEventListener('change', ()=>{ level.palette[+cb.dataset.i].blockRotation=cb.checked; }));
+    plistEl.querySelectorAll('.premove').forEach(btn=>btn.addEventListener('click', ()=>{ level.palette.splice(+btn.dataset.i,1); renderPlist(); }));
+  }
+  document.getElementById('addPaletteRow').addEventListener('click', ()=>{ level.palette.push({type:'mirror', mirrorType:'slash', count:1, blockRotation:true}); renderPlist(); });
+
+  const msgBox = document.getElementById('msgBox');
+  function showMsg(text, ok){ msgBox.textContent=text; msgBox.className='msg show '+(ok?'ok':'err'); setTimeout(()=>msgBox.classList.remove('show'),3500); }
+
+  function setLevel(parsed, keepListIndex){
+    if(!parsed || typeof parsed!=='object') throw new Error('JSON inválido');
+    level = {
+      cols: clamp(parseInt(parsed.cols)||8,2,32),
+      rows: clamp(parseInt(parsed.rows)||6,2,32),
+      fixed: Array.isArray(parsed.fixed)?parsed.fixed:[],
+      palette: Array.isArray(parsed.palette)?parsed.palette:[],
+      cables: Array.isArray(parsed.cables)?parsed.cables:[],
+    };
+    closeInspector();
+    document.getElementById('colsInput').value=level.cols;
+    document.getElementById('rowsInput').value=level.rows;
+    if(!keepListIndex){
+      currentLevelIndex = -1;
+      renderLevelList();
+    }
+    renderPlist(); resizeEditorCanvas();
+  }
+
+  document.getElementById('newLevelBtn').addEventListener('click', ()=>{ setLevel(defaultLevel()); showMsg('Nivel nuevo creado.',true); });
+  document.getElementById('loadExampleBtn').addEventListener('click', ()=>{ setLevel(exampleLevel()); showMsg('Ejemplo cargado.',true); });
+  document.getElementById('downloadBtn').addEventListener('click', ()=>{
+    const blob = new Blob([JSON.stringify(level,null,2)], {type:'application/json'});
+    const url = URL.createObjectURL(blob); const a=document.createElement('a');
+    a.href=url; a.download='lumen-level.json'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(url);
+  });
+  document.getElementById('showJsonBtn').addEventListener('click', ()=>{ document.getElementById('jsonArea').value = JSON.stringify(level,null,2); });
+  document.getElementById('loadPastedBtn').addEventListener('click', ()=>{
+    try{ setLevel(JSON.parse(document.getElementById('jsonArea').value)); showMsg('Nivel cargado correctamente.',true); }
+    catch(err){ showMsg('Error al leer el JSON: '+err.message,false); }
+  });
+  document.getElementById('fileInput').addEventListener('change', (e)=>{
+    const file=e.target.files[0]; if(!file) return;
+    const reader=new FileReader();
+    reader.onload=()=>{ try{ setLevel(JSON.parse(reader.result)); showMsg('Archivo cargado correctamente.',true); } catch(err){ showMsg('Error al leer el archivo: '+err.message,false); } };
+    reader.readAsText(file); e.target.value='';
+  });
+
+  // Level List Event Listeners
+  document.getElementById('saveLevelBtn').addEventListener('click', ()=>{
+    if(currentLevelIndex >= 0){
+      // Update existing level
+      if(confirm('¿Actualizar "' + levelList[currentLevelIndex].name + '" o guardar como nuevo?\n\nAceptar = Actualizar\nCancelar = Guardar como nuevo')){
+        updateLevelInList(currentLevelIndex);
+        showMsg('Nivel actualizado.', true);
+      } else {
+        const name = prompt('Nombre para el nuevo nivel:', 'Nivel ' + (levelList.length + 1));
+        if(name !== null) saveLevelToList(name.trim() || undefined);
+        showMsg('Nivel guardado.', true);
+      }
+    } else {
+      const name = prompt('Nombre para el nivel:', 'Nivel ' + (levelList.length + 1));
+      if(name !== null){
+        saveLevelToList(name.trim() || undefined);
+        showMsg('Nivel guardado.', true);
+      }
+    }
+  });
+
+  document.getElementById('exportAllLevelsBtn').addEventListener('click', ()=>{
+    if(levelList.length === 0){
+      showMsg('No hay niveles para exportar.', false);
+      return;
+    }
+    exportAllLevels();
+    showMsg('Lista exportada (' + levelList.length + ' niveles).', true);
+  });
+
+  document.getElementById('importLevelsBtn').addEventListener('click', ()=>{
+    document.getElementById('importLevelsFile').click();
+  });
+
+  document.getElementById('importLevelsFile').addEventListener('change', (e)=>{
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = ()=> importLevels(reader.result);
+    reader.readAsText(file);
+    e.target.value = '';
+  });
+
+  document.getElementById('clearAllLevelsBtn').addEventListener('click', clearAllLevels);
+
+  // ============================================================
+  // PLAY
+  // ============================================================
+  const plCanvas = document.getElementById('boardPlay');
+  const plCtx = plCanvas.getContext('2d');
+  let plCellPx = 0;
+  let play = null;
+
+  function resizePlayCanvas(){
+    const dpr = window.devicePixelRatio||1;
+    plCanvas.style.aspectRatio = level.cols+' / '+level.rows;
+    const rect = plCanvas.getBoundingClientRect();
+    plCanvas.width = Math.round(rect.width*dpr); plCanvas.height = Math.round(rect.height*dpr);
+    plCtx.setTransform(dpr,0,0,dpr,0,0);
+    plCellPx = rect.width/level.cols;
+    drawPlay();
+  }
+  window.addEventListener('resize', resizePlayCanvas);
+
+  function initPlay(){
+    play = {
+      board: buildBoard(level), counts: level.palette.map(p=>p.count), selected:null,
+      isPlaying:false, won:false, winTimerStart:null, rafId:null,
+      lastResult:null, pressTimer:null, pressCell:null, longFired:false,
+      signalTimers:{}, lastTickTime:null,
+    };
+    document.getElementById('playBtn').textContent='▶ Play';
+    document.getElementById('winBanner').classList.remove('show');
+    renderPlayPalette(); setPlayStatus(); resizePlayCanvas();
+  }
+
+  function drawPlay(){
+    const showSim = play.isPlaying || play.won;
+    const result = showSim ? play.lastResult : null;
+    const receiverActiveGrid = result ? result.receiverActive : null;
+    let progress = 0;
+    if(play.isPlaying && play.winTimerStart!==null) progress = Math.min(1,(performance.now()-play.winTimerStart)/WIN_HOLD_MS);
+    else if(play.won) progress = 1;
+
+    drawCables(plCtx, level.cables, plCellPx, 0.35);
+    drawBoardBase(plCtx, play.board, level.cols, level.rows, plCellPx, receiverActiveGrid, progress, result);
+    if(result) drawBeamsFromOutEdge(plCtx, result.outEdge, level.cols, level.rows, plCellPx);
+  }
+
+  function allReceiversActive(result){
+    let any=false;
+    for(let r=0;r<level.rows;r++) for(let c=0;c<level.cols;c++){
+      if(play.board[r][c].type==='receiver'){ any=true; if(!result.receiverActive[r][c]) return false; }
+    }
+    return any;
+  }
+
+  function tick(){
+    const now = performance.now();
+    const deltaMs = play.lastTickTime ? Math.min(now - play.lastTickTime, 100) : 16; // Cap delta to 100ms
+    play.lastTickTime = now;
+    
+    play.lastResult = evaluateWithTiming(level, play.board, play.signalTimers, deltaMs);
+    
+    if(allReceiversActive(play.lastResult)){
+      if(play.winTimerStart===null) play.winTimerStart = performance.now();
+      if(performance.now()-play.winTimerStart >= WIN_HOLD_MS){ triggerWin(); return; }
+    } else { play.winTimerStart = null; }
+    drawPlay();
+    play.rafId = requestAnimationFrame(tick);
+  }
+
+  function triggerWin(){
+    play.won=true; play.isPlaying=false; cancelAnimationFrame(play.rafId);
+    document.getElementById('winBanner').classList.add('show');
+    setPlayStatus(); drawPlay();
+  }
+
+  const statusBar = document.getElementById('statusBar');
+  const statusText = document.getElementById('statusText');
+  const statusRight = document.getElementById('statusRight');
+  function setPlayStatus(){
+    statusBar.classList.toggle('playing', play.isPlaying);
+    statusBar.classList.toggle('won', play.won);
+    if(play.won){ statusText.textContent='¡Nivel completado!'; statusRight.textContent=''; }
+    else if(play.isPlaying){ statusText.textContent='Simulando — mantén los receptores activos 1s...'; statusRight.textContent=''; }
+    else { statusText.textContent='Coloca tus objetos y pulsa PLAY'; const remaining=play.counts.reduce((s,c)=>s+c,0); statusRight.textContent = remaining>0 ? remaining+' por colocar' : 'Todo colocado'; }
+  }
+
+  document.getElementById('playBtn').addEventListener('click', ()=>{
+    if(play.won) return;
+    if(play.isPlaying){
+      play.isPlaying=false; play.winTimerStart=null; cancelAnimationFrame(play.rafId); play.lastResult=null;
+      play.lastTickTime=null; // Reset tick time when pausing
+      document.getElementById('playBtn').textContent='▶ Play'; setPlayStatus(); drawPlay();
+    } else {
+      play.isPlaying=true; play.winTimerStart=null; play.lastTickTime=null;
+      document.getElementById('playBtn').textContent='⏸ Pause'; setPlayStatus(); tick();
+    }
+  });
+  document.getElementById('resetPlayBtn').addEventListener('click', ()=>{ initPlay(); });
+
+  const paletteItemsEl = document.getElementById('paletteItems');
+  function renderPlayPalette(){
+    paletteItemsEl.innerHTML='';
+    level.palette.forEach((p,idx)=>{
+      const remaining = play.counts[idx];
+      const div = document.createElement('div');
+      div.className = 'item'+(play.selected===idx?' selected':'')+(remaining<=0?' empty':'');
+      let icon, name;
+      if(p.type==='wall'){ icon=wallIconSVG(remaining<=0); name='Pared'; }
+      else if(p.type==='tunnel'){ icon=tunnelIconSVG(p.orientation||'h', remaining<=0); name='Túnel'; }
+      else { icon=mirrorIconSVG(p.mirrorType, remaining<=0); name = p.mirrorType==='slash'?'Espejo /':'Espejo \\'; }
+      div.innerHTML = icon+'<span class="name">'+name+'</span><span class="count">x'+remaining+'</span>';
+      div.addEventListener('click', ()=>{
+        if(play.isPlaying||play.won||remaining<=0) return;
+        play.selected = (play.selected===idx)?null:idx; renderPlayPalette();
+      });
+      paletteItemsEl.appendChild(div);
+    });
+    if(level.palette.length===0) paletteItemsEl.innerHTML = '<p class="hint">Este nivel no tiene objetos definidos para el jugador. Añádelos en el Editor.</p>';
+  }
+
+  function cellFromEvent(e){
+    const rect = plCanvas.getBoundingClientRect();
+    const c = Math.floor((e.clientX-rect.left)/(rect.width/level.cols));
+    const r = Math.floor((e.clientY-rect.top)/(rect.height/level.rows));
+    if(c<0||c>=level.cols||r<0||r>=level.rows) return null;
+    return {c,r};
+  }
+
+  function paletteIndexFor(cell){
+    return level.palette.findIndex(p=>{
+      if(p.type!==cell.type) return false;
+      if(p.type==='mirror') return p.mirrorType===cell.mirrorType;
+      return true;
+    });
+  }
+
+  function doLongPress(c,r){
+    const cell = play.board[r][c];
+    if(cell.fixed || cell.type==='empty') return;
+    const idx = paletteIndexFor(cell);
+    if(idx>=0) play.counts[idx]++;
+    play.board[r][c] = {type:'empty', fixed:false};
+    renderPlayPalette(); setPlayStatus(); drawPlay();
+  }
+
+  function doTap(c,r){
+    const cell = play.board[r][c];
+    if(!cell.fixed && (cell.type==='mirror' || cell.type==='tunnel')){
+      const idx = paletteIndexFor(cell);
+      const def = idx>=0 ? level.palette[idx] : null;
+      if(def && def.blockRotation===false){
+        if(cell.type==='mirror') cell.mirrorType = cell.mirrorType==='slash'?'backslash':'slash';
+        else cell.orientation = cell.orientation==='h'?'v':'h';
+        drawPlay();
+      }
+      return;
+    }
+    if(cell.type==='empty' && play.selected!==null){
+      const def = level.palette[play.selected];
+      if(def && play.counts[play.selected]>0){
+        play.counts[play.selected]--;
+        let obj;
+        if(def.type==='wall') obj={type:'wall', fixed:false};
+        else if(def.type==='tunnel') obj={type:'tunnel', orientation:def.orientation||'h', fixed:false};
+        else obj={type:'mirror', mirrorType:def.mirrorType, fixed:false};
+        play.board[r][c]=obj;
+        if(play.counts[play.selected]<=0) play.selected=null;
+        renderPlayPalette(); setPlayStatus(); drawPlay();
+      }
+    }
+  }
+
+  plCanvas.addEventListener('pointerdown', (e)=>{
+    if(play.isPlaying||play.won) return;
+    const cell = cellFromEvent(e); if(!cell) return;
+    play.pressCell=cell; play.longFired=false;
+    play.pressTimer = setTimeout(()=>{ play.longFired=true; doLongPress(cell.c,cell.r); }, LONG_PRESS_MS);
+  });
+  plCanvas.addEventListener('pointerup', (e)=>{
+    if(play.isPlaying||play.won) return;
+    clearTimeout(play.pressTimer);
+    if(play.longFired){ play.longFired=false; play.pressCell=null; return; }
+    const cell = cellFromEvent(e);
+    if(cell && play.pressCell && cell.c===play.pressCell.c && cell.r===play.pressCell.r) doTap(cell.c,cell.r);
+    play.pressCell=null;
+  });
+  plCanvas.addEventListener('pointerleave', ()=>{ clearTimeout(play.pressTimer); play.pressCell=null; });
+  plCanvas.addEventListener('pointercancel', ()=>{ clearTimeout(play.pressTimer); play.pressCell=null; });
+
+  // ============================================================
+  // TABS
+  // ============================================================
+  const tabEditor = document.getElementById('tabEditor');
+  const tabPlay = document.getElementById('tabPlay');
+  const editorView = document.getElementById('editorView');
+  const playView = document.getElementById('playView');
+
+  tabEditor.addEventListener('click', ()=>{
+    if(mode==='editor') return; mode='editor';
+    if(play){ play.isPlaying=false; cancelAnimationFrame(play.rafId); }
+    tabEditor.classList.add('active'); tabPlay.classList.remove('active');
+    editorView.style.display='block'; playView.style.display='none';
+    resizeEditorCanvas();
+  });
+  tabPlay.addEventListener('click', ()=>{
+    if(mode==='play') return; mode='play';
+    tabPlay.classList.add('active'); tabEditor.classList.remove('active');
+    editorView.style.display='none'; playView.style.display='block';
+    initPlay();
+  });
+
+  // ============================================================
+  // INIT
+  // ============================================================
+  document.getElementById('colsInput').value=level.cols;
+  document.getElementById('rowsInput').value=level.rows;
+  renderPlist();
+  
+  // Load level list from localStorage
+  loadLevelListFromStorage();
+  renderLevelList();
+  
+  requestAnimationFrame(()=>{ resizeEditorCanvas(); });
+})();
+</script>
+</body>
+</html>
